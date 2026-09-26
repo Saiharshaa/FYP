@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install -e ".[dev]" --no-deps
+      - name: Report sandbox isolation
+        run: python -c "from verifier.sandbox import SubprocessSandbox; print('subprocess network isolation:', SubprocessSandbox().network_isolation)"
+      - name: Tests (Linux + Docker)
+        run: pytest -v -rs
+      - name: Ground-truth check (HumanEval+)
+        run: python -m verifier.corpus.ground_truth_check --out ground_truth_report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ground-truth-report
+          path: ground_truth_report.json
