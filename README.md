@@ -27,6 +27,19 @@ notebook/    LAB_NOTEBOOK.md, dated research log
 tests/       pytest suite
 ```
 
+## Setup
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt                    # exact pinned versions
+pip install -e ".[dev]" --no-deps                  # this package, editable
+pytest
+```
+
+EvalPlus's evaluator and the rlimit sandbox backend need Linux (`SIGALRM`,
+`resource`). On Windows use WSL2; tests that need Linux or Docker skip
+themselves elsewhere and run in CI.
+
 ## Status
 
 Phase 0 (setup). Verification strategies and the OpenClaw integration are not
