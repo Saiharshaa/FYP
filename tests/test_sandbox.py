@@ -68,7 +68,8 @@ def test_memory_bomb_is_killed(sandbox):
 def test_network_call_fails(sandbox, probe):
     r = sandbox.run(probe, timeout_s=15, memory_mb=256)
     assert r["exit_code"] != 0 and not r["timed_out"]
-    assert "Error" in r["stderr"]
+    # e.g. OSError / ConnectionError / URLError / socket.gaierror
+    assert "Traceback" in r["stderr"]
 
 
 def test_output_is_capped(sandbox):

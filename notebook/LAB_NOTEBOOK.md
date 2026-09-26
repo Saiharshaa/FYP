@@ -48,7 +48,35 @@ Dated entries, newest last. Record what was built, what failed, and open questio
   falls back to a Python socket guard, which can be bypassed and is not a
   security boundary.
 
+**Update: first Linux run (GitHub Actions, ubuntu-24.04, Py 3.13): 41 passed, 3 failed**
+- **Ground truth: 163/164 canonical solutions pass, not 164.** HumanEval/32
+  (`find_zero`) fails both base and plus with 0 tests recorded as passed. Its
+  canonical residuals are about 1e-9, within `atol` = 1e-4, so the canonical
+  solution is fine. The cause is an evalplus 0.3.1 bug: the `find_zero`
+  special oracle does `assert ...; continue`, which skips recording the pass,
+  so **every HumanEval/32 solution, correct or not, is labelled incorrect.**
+  It is fixed on evalplus master (issue #125) but not released; 0.3.1 is the
+  latest PyPI version. The check was left as is; this needs a decision.
+- **An infinite loop is labelled `fail`, not `timeout`.** A per-test time-limit
+  breach is caught inside evalplus's per-test `try` and recorded as a failure.
+  `timeout` only appears if the whole worker hangs. The wrong solutions still
+  fail as required, but the plan's "timeout" failure category cannot be read
+  from the evalplus status; it needs separate detection. The test asserting
+  `timeout` was left failing.
+- Deliberately wrong solutions: all 3 fail as expected.
+- Sandbox: all Docker and rlimit tests pass (timeout, memory bomb, network,
+  output cap, child processes killed), except Docker DNS, which failed only
+  because my test's assertion was wrong: it looked for "Error" but got
+  `socket.gaierror`. The call itself was blocked. Test fixed.
+- The rlimit backend on ubuntu-24.04 used **python-guard**, not a network
+  namespace: Ubuntu 24.04's AppArmor restricts unprivileged user namespaces.
+  TC1 may behave the same way.
+
 **Open questions**
+- Pin evalplus to a master commit that contains the `find_zero` fix, or keep
+  0.3.1 and exclude or relabel HumanEval/32?
+- How should the "timeout" failure category be detected? (per-test timing in
+  our own harness, or a patched evalplus)
 - TC1: are unprivileged user namespaces enabled? Is Apptainer/Singularity
   available (a better sandbox than rlimits)? Which Python modules exist (≥3.11
   needed)?

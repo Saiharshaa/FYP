@@ -25,6 +25,7 @@ jobs:
       - name: Tests (Linux + Docker)
         run: pytest -v -rs
       - name: Ground-truth check (HumanEval+)
+        if: always()
         run: python -m verifier.corpus.ground_truth_check --out ground_truth_report.json
       - uses: actions/upload-artifact@v4
         if: always()
