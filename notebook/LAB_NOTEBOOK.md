@@ -72,6 +72,14 @@ Dated entries, newest last. Record what was built, what failed, and open questio
   namespace: Ubuntu 24.04's AppArmor restricts unprivileged user namespaces.
   TC1 may behave the same way.
 
+**Update: local WSL2 (Ubuntu 24.04.5, Python 3.12.3, Docker 29.8.1)**
+- Same result as CI: 42 passed, and the same 2 failures (HumanEval/32; the
+  timeout label). Under WSL the rlimit backend gets **namespace** network
+  isolation: unprivileged user namespaces are allowed here, unlike on the CI
+  runner.
+- Dev workflow: use the checkout at `~/FYP` in WSL; git pushes through the
+  Windows `gh` credentials.
+
 **Open questions**
 - Pin evalplus to a master commit that contains the `find_zero` fix, or keep
   0.3.1 and exclude or relabel HumanEval/32?
