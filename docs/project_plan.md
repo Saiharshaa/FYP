@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| Student | Sai Harsha Venugopal |
+| Student | Sai Harsha Venugopal (U2321873F) |
 | Programme | Double Degree (Hons), Computer Science & Business |
 | Project No. / Course | CCDS26-0044 / SC4079 |
 | Supervisor | A/P Chee Wei Tan |
