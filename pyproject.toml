@@ -7,7 +7,7 @@ name = "verifier"
 version = "0.1.0"
 description = "Measuring the reliability of LLM code verifiers against EvalPlus ground truth"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "evalplus==0.3.1",
     "httpx>=0.27",
@@ -22,7 +22,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "linux: needs a POSIX host (resource/SIGALRM) — skipped on Windows",
+    "linux: needs a POSIX host (resource/SIGALRM); skipped on Windows",
     "docker: needs a reachable Docker daemon",
     "slow: runs the full HumanEval+ suite (minutes)",
 ]

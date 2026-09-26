@@ -1,0 +1,14 @@
+# Default run configuration. Copy and edit per experiment; point
+# $VERIFIER_CONFIG at the copy.
+
+[sandbox]
+# "docker" for local machines with Docker; "subprocess" on TC1 (no Docker).
+backend = "subprocess"
+
+[sandbox.docker]
+image = "python:3.13-slim"   # TODO: pin by digest before the evaluation freeze
+cpus = 1.0
+pids_limit = 64
+
+[sandbox.subprocess]
+network = "auto"             # "namespace" | "python-guard" | "auto" (namespace if permitted)
