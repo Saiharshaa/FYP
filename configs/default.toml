@@ -12,6 +12,13 @@
 # Decision 2026-09-28; see notebook/LAB_NOTEBOOK.md.
 exclude = ["HumanEval/32"]
 
+[generation]
+# Candidate pool: samples_per_temperature x len(temperatures) per problem
+# (10 x 163 = 1630 with the defaults). Decision 2026-09-28.
+temperatures = [0.2, 0.8]
+samples_per_temperature = 5
+max_tokens = 1024
+
 [labelling]
 # For a failing candidate, the first failing input is re-run in the sandbox
 # with limit = evalplus per-test limit x timeout_multiplier; failure_category
