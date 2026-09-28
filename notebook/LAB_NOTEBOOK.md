@@ -81,17 +81,80 @@ Dated entries, newest last. Record what was built, what failed, and open questio
   Windows `gh` credentials.
 
 **Open questions**
-- Pin evalplus to a master commit that contains the `find_zero` fix, or keep
-  0.3.1 and exclude or relabel HumanEval/32?
-- How should the "timeout" failure category be detected? (per-test timing in
-  our own harness, or a patched evalplus)
-- TC1: are unprivileged user namespaces enabled? Is Apptainer/Singularity
-  available (a better sandbox than rlimits)? Which Python modules exist (≥3.11
-  needed)?
+- ~~Pin evalplus, or keep 0.3.1 and exclude HumanEval/32?~~ Resolved
+  2026-09-28, see below.
+- ~~How should the "timeout" category be detected?~~ Resolved 2026-09-28.
+- (Remaining open questions moved to the 2026-09-28 entry.)
+
+## 2026-09-28: Ground-truth decisions (HumanEval/32, timeouts, network isolation)
+
+**Decision 1: evalplus version and HumanEval/32**
+- Diffed evalplus v0.3.1 (`e5d0ed0b`) against the fix commit
+  **`6eb1e199c2e370518e7bf3e8eee6322c2b23c89c`** ("fix(find_zero): record
+  results before continue", #241; 2024-10-31; 13 commits after v0.3.1).
+  Label-path changes: only the two `find_zero` lines in `eval/__init__.py`.
+  `evaluate.py` gains two lines that add `pass_at_k` to the CLI's output dict,
+  which isn't used by `check_correctness`. No change to `data/`, `config.py`
+  (time limits), `gen/` (`trusted_exec`), `eval/utils.py`, the special oracles
+  or `sanitize.py`. The rest is codegen/provider, Dockerfile and README
+  changes, plus dropping the `stop-sequencer` dependency.
+- **Pinned `6eb1e19`** in `pyproject.toml` and `requirements.txt`. It installs
+  as `evalplus 0.4.0.dev13`.
+- Dataset: **HumanEvalPlus v0.1.10**, unchanged. md5 (Linux)
+  `fe585eb4df8c88d844eeb463ea4d0302`. The earlier `916d9bf…` came from the
+  Windows cache, which evalplus writes in text mode (CRLF); the content is
+  identical. Record the Linux hash.
+- **The re-run did not give the expected 164/164.** It gave 164/164 base and
+  163/164 plus. HumanEval/32's canonical solution fails 7 of its 788 plus
+  inputs (#119, 177, 185, 399, 616, 650, 694): Newton's method stops after
+  1000 iterations without converging. For #119 and #399, no float64 value
+  within ±20,000 ulps of the root reaches |poly(x)| ≤ atol = 1e-4: the
+  best is about 2.3e-3, at float64 rounding-noise level. **So no
+  float64 solution can pass HumanEval/32 plus**, and every candidate would be
+  labelled incorrect.
+- Decision (user): keep the pin and **exclude HumanEval/32 via config**
+  (`[corpus] exclude`). No manual relabelling. Canonical check: **163/163
+  base and plus.**
+- Report for the write-up: the canonical solution also fails #177 and #185,
+  where passing float64 answers do exist, so it is also simply
+  non-convergent on some inputs.
+
+**Decision 2: timeout category**
+- The raw evalplus status stays the correctness label, unchanged. New derived
+  field `failure_category` (`verifier.corpus.categorise`): for a failing
+  candidate, the first failing input is re-run in our sandbox with limit =
+  evalplus per-test limit × `[labelling] timeout_multiplier` (= 5; the
+  evalplus limit is max(1 s, 4 × canonical runtime)). The limit is enforced
+  around the call only, so interpreter start-up doesn't count.
+- Categories: `timeout` (exceeded the limit), `error` (raise or load
+  failure), `wrong_output`, and `slow` (returned the right answer within 5×
+  but failed evalplus's tighter limit), plus `unknown`. The plan's manual
+  categories subdivide `wrong_output` and `error` later.
+- Wrong solutions: HE/0 and HE/23 → `wrong_output`; HE/13 (infinite loop) →
+  raw status `fail`, category `timeout` (exceeded the 5.0 s re-run limit).
+- The machine is logged in every report: DESKTOP-AH0HVC6, WSL2 kernel 6.18,
+  i7-1255U ×12, Python 3.12.3, subprocess sandbox with a network namespace.
+
+**Decision 3: execution location**
+- Plan: **inference on TC1; all candidate-code execution in WSL2.**
+- `SubprocessSandbox` raises `InsecureNetworkIsolation` if only the
+  bypassable python-guard is available, unless `[sandbox.subprocess]
+  allow_python_guard = true` (default false). CI now enables unprivileged
+  user namespaces (`sysctl kernel.apparmor_restrict_unprivileged_userns=0`),
+  so it tests the namespace path, the same as WSL2.
+
+**Results:** WSL2 64 passed, 1 skipped (the Windows-only test). CI
+ubuntu-24.04/Py 3.13 64 passed, 1 skipped, namespace isolation. The
+ground-truth check exits 0.
+
+**Open questions**
+- Since execution stays in WSL, TC1 only needs vLLM. Check: GPU access
+  approved? Python ≥3.11 module available? A vLLM version that suits a V100
+  (compute capability 7.0)?
 - Where should run logs be archived? `results/` is gitignored.
-- Log schema: I added `model`, `temperature`, `max_tokens` and
-  `finish_reason` to the specified fields. Convention: one model per run_id,
-  since the resume key excludes the model.
+- Log schema: added `model`, `temperature`, `max_tokens` and
+  `finish_reason`. Convention: one model per run_id.
 - Pin the Docker image by digest before the evaluation freeze.
-- Add a licence, since the repo is public.
-- Check supervisor/NTU rules on keeping FYP code public before submission.
+- `slow` vs `timeout` depends on the host: freeze labelling on this one
+  machine.
+- Add a licence (the repo is public); check NTU rules on public FYP code.
