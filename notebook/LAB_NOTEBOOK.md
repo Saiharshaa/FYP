@@ -158,3 +158,58 @@ ground-truth check exits 0.
 - `slow` vs `timeout` depends on the host: freeze labelling on this one
   machine.
 - Add a licence (the repo is public); check NTU rules on public FYP code.
+
+## 2026-09-28 (later): Phase 1 corpus pipeline, tested with a mock model
+
+**Decisions (user):** build the pipeline only; no real generator model until
+TC1 access or budget is confirmed. Sampling: 5 samples × T ∈ {0.2, 0.8} per
+problem, i.e. 10 × 163 = 1630 candidates (`[generation]` in config).
+
+**Built** (`verifier.corpus.build`, commit `8a2a220`)
+- `generate`: EvalPlus instruct prompt, sent as the user message only (chat
+  APIs can't pre-fill EvalPlus's response prefix). It logs via RunLog with
+  resume, never executes code (so it is TC1-safe), and refuses a second
+  model in the same run_id.
+- `label`: evalplus `sanitize`, then `label_many`, then the sandbox
+  `categorise`. Writes `corpus.jsonl` and `corpus_meta.json` (machine,
+  evalplus commit, dataset version and md5, generation config).
+- `MockCoder`: deterministic by seed % 5: 0–2 canonical, 3 `return None`,
+  4 syntax error.
+- Tests: 72 passed in WSL.
+
+**Full-size dry run** (mock, 1630 candidates): generate 10 s; resume made
+0 calls; label 138 s with 6 workers.
+
+**Finding 1: sanitize repairs syntax errors.** evalplus's tree-sitter
+`sanitize` drops a broken `return (` line and keeps a docstring-only function,
+which returns None and is categorised `wrong_output`. On HE/0 it drops the
+whole function, giving a load `error`. The evalplus CLI does the same. So
+**syntax errors in model output mostly do not appear as `error`**, which
+matters for H3. The labels were left as they are; each row now records
+`response_code_parses`, `sanitize_modified` and `response_has_code_block`.
+Verifiers must be shown the sanitized `solution` (the labelled code), not the
+raw response.
+
+**Finding 2: parallel labelling produces false `fail`s on correct code.** In
+the 6-worker dry run, 4 of the 978 byte-identical canonical copies (HE/83 ×1,
+HE/139 ×3) got raw status `fail`: they exceeded evalplus's 1.0 s per-test
+limit on a test whose canonical reference time is 0.25 s. They were
+categorised `slow`, which is how the discrepancy was caught. Other copies of
+the same code passed. Relabelling the same log **with 1 worker, twice:
+0/978 false fails both times**, and every other label and category was
+identical. Serial takes about 275 s versus 138 s.
+- Likely cause: this laptop CPU mixes 2 performance and 8 efficiency cores
+  (i7-1255U), plus turbo/thermal behaviour, under 6 concurrent evalplus
+  workers. The reference times come from one earlier measurement (cached
+  pickle).
+- This matters for the study: a correct candidate labelled incorrect, which
+  a verifier accepts, is scored as a false accept. The noise was about 0.4%
+  of correct candidates in this run.
+- The labels were not adjusted. **Decision needed**: the labelling policy
+  (e.g. serial by default).
+
+**Open questions**
+- Labelling concurrency policy (above).
+- Should the pickle of reference times be recomputed on the labelling machine
+  immediately before labelling, so limits reflect current conditions?
+- TC1 generation job script (SLURM + vLLM), once the model is chosen.
