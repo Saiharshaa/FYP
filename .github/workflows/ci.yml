@@ -20,6 +20,11 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -e ".[dev]" --no-deps
+      # Ubuntu 24.04's AppArmor blocks unprivileged user namespaces; allow them so
+      # the subprocess sandbox gets a real network namespace (as in WSL2) rather
+      # than the python-guard fallback, which the default config refuses.
+      - name: Enable unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Report sandbox isolation
         run: python -c "from verifier.sandbox import SubprocessSandbox; print('subprocess network isolation:', SubprocessSandbox().network_isolation)"
       - name: Tests (Linux + Docker)

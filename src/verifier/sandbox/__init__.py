@@ -11,24 +11,16 @@ overrides just the backend name.
 from __future__ import annotations
 
 import os
-import tomllib
-from pathlib import Path
 
+from verifier.config import load_config
 from verifier.sandbox.base import RunResult, Sandbox
 from verifier.sandbox.docker_backend import DockerSandbox
-from verifier.sandbox.subprocess_backend import SubprocessSandbox
+from verifier.sandbox.subprocess_backend import InsecureNetworkIsolation, SubprocessSandbox
 
 __all__ = ["RunResult", "Sandbox", "DockerSandbox", "SubprocessSandbox",
-           "load_config", "make_sandbox", "run"]
+           "InsecureNetworkIsolation", "load_config", "make_sandbox", "run"]
 
 BACKENDS = {"docker": DockerSandbox, "subprocess": SubprocessSandbox}
-DEFAULT_CONFIG = Path(__file__).resolve().parents[3] / "configs" / "default.toml"
-
-
-def load_config(path: str | os.PathLike | None = None) -> dict:
-    path = Path(path or os.environ.get("VERIFIER_CONFIG") or DEFAULT_CONFIG)
-    with open(path, "rb") as f:
-        return tomllib.load(f)
 
 
 def make_sandbox(sandbox_cfg: dict) -> Sandbox:

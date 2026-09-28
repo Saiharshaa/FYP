@@ -1,8 +1,27 @@
 # Default run configuration. Copy and edit per experiment; point
 # $VERIFIER_CONFIG at the copy.
+#
+# Execution plan: model inference on TC1; ALL candidate-code execution in WSL2
+# (Ubuntu 24.04), where unprivileged network namespaces are available.
+
+[corpus]
+# HumanEval/32 (find_zero): even with the evalplus find_zero fix pinned, the
+# canonical solution fails 7/788 plus inputs, and >=2 of those (#119, #399)
+# cannot be satisfied by any float64 answer (|poly(x)| <= 1e-4 is below the
+# rounding floor), so every candidate would be labelled incorrect.
+# Decision 2026-09-28; see notebook/LAB_NOTEBOOK.md.
+exclude = ["HumanEval/32"]
+
+[labelling]
+# For a failing candidate, the first failing input is re-run in the sandbox
+# with limit = evalplus per-test limit x timeout_multiplier; failure_category
+# is "timeout" only if it exceeds that. The raw evalplus status is kept as the
+# correctness label.
+timeout_multiplier = 5
+memory_mb = 4096             # matches evalplus's default 4 GB cap
 
 [sandbox]
-# "docker" for local machines with Docker; "subprocess" on TC1 (no Docker).
+# "docker" or "subprocess" (rlimits + network namespace).
 backend = "subprocess"
 
 [sandbox.docker]
@@ -12,3 +31,6 @@ pids_limit = 64
 
 [sandbox.subprocess]
 network = "auto"             # "namespace" | "python-guard" | "auto" (namespace if permitted)
+# The python-guard fallback blocks sockets in-process only and is bypassable.
+# The sandbox refuses to use it unless this is set to true.
+allow_python_guard = false

@@ -3,16 +3,32 @@ import textwrap
 
 import pytest
 
-from verifier.sandbox import DockerSandbox, SubprocessSandbox, load_config, make_sandbox
+from verifier.sandbox import (
+    DockerSandbox,
+    InsecureNetworkIsolation,
+    SubprocessSandbox,
+    load_config,
+    make_sandbox,
+)
 
 _docker = DockerSandbox()
 DOCKER_UP = _docker.available()
+POSIX = [pytest.mark.linux,
+         pytest.mark.skipif(os.name != "posix", reason="rlimit backend needs POSIX")]
+
+
+def _guard_override():
+    return SubprocessSandbox(network="python-guard", allow_python_guard=True)
 
 
 def _backends():
-    params = [pytest.param(SubprocessSandbox, id="subprocess", marks=[
-        pytest.mark.linux,
-        pytest.mark.skipif(os.name != "posix", reason="rlimit backend needs POSIX")])]
+    params = [
+        # Default settings: must get a real network namespace (WSL2, CI with
+        # userns enabled); raises InsecureNetworkIsolation otherwise.
+        pytest.param(SubprocessSandbox, id="subprocess", marks=POSIX),
+        # The bypassable fallback, explicitly overridden: still blocks ordinary calls.
+        pytest.param(_guard_override, id="subprocess-guard", marks=POSIX),
+    ]
     params.append(pytest.param(DockerSandbox, id="docker", marks=[
         pytest.mark.docker,
         pytest.mark.skipif(not DOCKER_UP, reason="no Docker daemon")]))
@@ -105,6 +121,28 @@ def test_backend_chosen_by_config():
     assert isinstance(sb, SubprocessSandbox) and sb.network == "python-guard"
     with pytest.raises(ValueError, match="unknown sandbox backend"):
         make_sandbox({"backend": "vm"})
+
+
+@pytest.mark.linux
+@pytest.mark.skipif(os.name != "posix", reason="rlimit backend needs POSIX")
+def test_python_guard_refused_without_override():
+    sb = SubprocessSandbox(network="python-guard")
+    with pytest.raises(InsecureNetworkIsolation, match="allow_python_guard"):
+        sb.run("print(1)\n", timeout_s=5, memory_mb=256)
+
+
+def test_auto_fallback_refused_when_no_namespace(monkeypatch):
+    from verifier.sandbox import subprocess_backend
+    monkeypatch.setattr(subprocess_backend, "_namespace_available", lambda: False)
+    with pytest.raises(InsecureNetworkIsolation):
+        SubprocessSandbox().network_isolation
+    assert SubprocessSandbox(allow_python_guard=True).network_isolation == "python-guard"
+
+
+def test_default_config_refuses_python_guard():
+    sub = load_config()["sandbox"]["subprocess"]
+    assert sub["allow_python_guard"] is False
+    assert make_sandbox({"backend": "subprocess", "subprocess": sub}).allow_python_guard is False
 
 
 def test_default_config_loads():

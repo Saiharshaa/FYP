@@ -11,6 +11,8 @@ Isolation provided:
                ordinary library code but is bypassable (ctypes, _socket, spawning
                curl) — adequate for non-adversarial model output, not a security
                boundary. `network_isolation` records which one is in force.
+               The guard is refused (InsecureNetworkIsolation) unless the
+               caller passes allow_python_guard=True.
 Not isolated: filesystem reads, process count (no RLIMIT_NPROC: it is per-user
 and would break on shared cluster nodes).
 """
@@ -56,15 +58,21 @@ def _namespace_available() -> bool:
         return False
 
 
+class InsecureNetworkIsolation(RuntimeError):
+    """Only the bypassable python-guard is available, and it was not allowed."""
+
+
 class SubprocessSandbox:
     name = "subprocess"
 
     def __init__(self, python: str = sys.executable, network: str = "auto",
+                 allow_python_guard: bool = False,
                  max_output_bytes: int = 1_000_000, max_file_mb: int = 16):
         if network not in ("auto", "namespace", "python-guard"):
             raise ValueError(f"unknown network mode {network!r}")
         self.python = python
         self.network = network
+        self.allow_python_guard = allow_python_guard
         self.max_output_bytes = max_output_bytes
         self.max_file_bytes = max_file_mb * 1024 * 1024
         self._isolation: str | None = None
@@ -72,14 +80,20 @@ class SubprocessSandbox:
     @property
     def network_isolation(self) -> str:
         if self._isolation is None:
-            has_ns = _namespace_available()
-            if self.network == "namespace" and not has_ns:
-                raise RuntimeError("network='namespace' but unprivileged "
-                                   "user/network namespaces are unavailable")
             if self.network == "python-guard":
-                self._isolation = "python-guard"
+                isolation = "python-guard"
             else:
-                self._isolation = "namespace" if has_ns else "python-guard"
+                has_ns = _namespace_available()
+                if self.network == "namespace" and not has_ns:
+                    raise RuntimeError("network='namespace' but unprivileged "
+                                       "user/network namespaces are unavailable")
+                isolation = "namespace" if has_ns else "python-guard"
+            if isolation == "python-guard" and not self.allow_python_guard:
+                raise InsecureNetworkIsolation(
+                    "no network namespace available; the python-guard fallback "
+                    "is bypassable and is refused. Run in WSL2 or Docker, or set "
+                    "[sandbox.subprocess] allow_python_guard = true to override.")
+            self._isolation = isolation
         return self._isolation
 
     def _set_limits(self, timeout_s: float, memory_mb: int) -> None:
