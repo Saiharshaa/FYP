@@ -9,7 +9,8 @@ description = "Measuring the reliability of LLM code verifiers against EvalPlus 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "evalplus==0.3.1",
+    # v0.3.1 + find_zero fix (#241); see LAB_NOTEBOOK 2026-09-26
+    "evalplus @ git+https://github.com/evalplus/evalplus.git@6eb1e199c2e370518e7bf3e8eee6322c2b23c89c",
     "httpx>=0.27",
 ]
 
