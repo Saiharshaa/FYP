@@ -19,6 +19,12 @@ temperatures = [0.2, 0.8]
 samples_per_temperature = 5
 max_tokens = 1024
 
+[verification]
+# Strategies (a) direct and (b) reason; (e) = majority vote over these seeds.
+# T > 0 so repeated seeds are independent samples. Decision 2026-09-30.
+temperature = 0.7
+seeds = [0, 1, 2]
+
 [labelling]
 # For a failing candidate, the first failing input is re-run in the sandbox
 # with limit = evalplus per-test limit x timeout_multiplier; failure_category

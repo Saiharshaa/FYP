@@ -4,6 +4,7 @@
 #
 #   scripts/serve_local_llm.sh download   # fetch GGUF, verify sha256 against HF
 #   scripts/serve_local_llm.sh start      # run container on 127.0.0.1:$PORT
+#   scripts/serve_local_llm.sh ensure     # start only if not already healthy
 #   scripts/serve_local_llm.sh smoke      # determinism + usage + throughput check
 #   scripts/serve_local_llm.sh stop
 #
@@ -64,6 +65,12 @@ case "${1:-}" in
       sleep 2
     done
     echo "server did not become healthy; see: docker logs $NAME" >&2; exit 1
+    ;;
+  ensure)
+    # WSL2 shuts the VM down soon after the last wsl.exe client exits, taking
+    # the container with it; long runs call this first, in the same session.
+    curl -fs "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 && { echo "already up"; exit 0; }
+    exec bash "$0" start
     ;;
   smoke)
     BASE="http://127.0.0.1:$PORT/v1"
