@@ -45,6 +45,7 @@ def run(workers: int | None = None, config: dict | None = None) -> dict:
     require_posix()
     cfg = config or load_config()
     lab = cfg["labelling"]
+    workers = workers or lab.get("workers") or 1
     sandbox = make_sandbox(cfg["sandbox"])
     t0 = time.time()
     problems = load_problems(cfg["corpus"].get("exclude", []))
@@ -65,6 +66,7 @@ def run(workers: int | None = None, config: dict | None = None) -> dict:
         "evalplus": evalplus_info(),
         "machine": machine_info(sandbox),
         "timeout_multiplier": lab["timeout_multiplier"],
+        "labelling_workers": workers,
         "excluded": list(cfg["corpus"].get("exclude", [])),
         "n_problems": len(problems),
         "canonical": {

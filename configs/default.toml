@@ -26,6 +26,10 @@ max_tokens = 1024
 # correctness label.
 timeout_multiplier = 5
 memory_mb = 4096             # matches evalplus's default 4 GB cap
+# Serial by default: with 6 workers, 4/978 byte-identical canonical copies were
+# labelled "fail" on evalplus time limits (load on this laptop's mixed P/E
+# cores); 1 worker gave 0/978 twice. Decision 2026-09-30.
+workers = 1
 
 [sandbox]
 # "docker" or "subprocess" (rlimits + network namespace).

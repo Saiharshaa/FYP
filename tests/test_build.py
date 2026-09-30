@@ -28,6 +28,10 @@ def test_default_sampling_plan():
     assert g["temperatures"] == [0.2, 0.8] and g["samples_per_temperature"] == 5
 
 
+def test_labelling_is_serial_by_default():
+    assert CFG["labelling"]["workers"] == 1
+
+
 def test_prompt_uses_evalplus_instruction(problems):
     p = build.build_prompt(problems["HumanEval/0"])
     assert p.startswith(build.INSTRUCTION)
@@ -94,6 +98,7 @@ def test_label_end_to_end(tmp_path, few):
     ok = [r for r in rows if r["seed"] < 3]
     assert all(r["response_code_parses"] for r in ok)
     assert meta["evalplus"]["commit"].startswith("6eb1e19")
+    assert meta["labelling_workers"] == 1  # serial default from config
     assert meta["machine"]["hostname"] and meta["dataset_version"] == "v0.1.10"
 
 

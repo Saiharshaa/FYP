@@ -116,7 +116,7 @@ def label(log: RunLog, cfg: dict, workers: int | None = None) -> dict:
     problems = load_problems(excluded)
     expected = load_expected(problems)
     sandbox = make_sandbox(cfg["sandbox"])
-    workers = workers or max(1, (os.cpu_count() or 2) // 2)
+    workers = workers or lab.get("workers") or 1  # serial default: see config
 
     records = [r for r in log.records() if r.strategy == STRATEGY]
     skipped = Counter(r.problem_id for r in records if r.problem_id not in problems)
@@ -158,6 +158,7 @@ def label(log: RunLog, cfg: dict, workers: int | None = None) -> dict:
         "models": sorted({r["model"] for r in rows}),
         "generation": cfg["generation"],
         "timeout_multiplier": lab["timeout_multiplier"],
+        "labelling_workers": workers,
         "excluded": excluded,
         "evalplus": evalplus_info(),
         **{"dataset_" + k: v for k, v in dataset_info().items()},
