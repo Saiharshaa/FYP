@@ -62,6 +62,36 @@ def test_generate_refuses_second_model_in_same_run(tmp_path, few):
         build.generate(log, MockClient(model="other"), few, CFG["generation"])
 
 
+def test_select_problems_is_reproducible(problems):
+    a = build.select_problems(problems, 40, 2026)
+    assert len(a) == 40 and list(a) == [t for t in problems if t in a]  # dataset order
+    assert list(a) == list(build.select_problems(problems, 40, 2026))
+    assert list(a) != list(build.select_problems(problems, 40, 2027))
+
+
+def test_problem_set_is_pinned_per_run(tmp_path):
+    log = RunLog("pin", tmp_path)
+    build.pin_problem_set(log, ["HumanEval/0", "HumanEval/1"])
+    build.pin_problem_set(log, ["HumanEval/0", "HumanEval/1"])  # same set: fine
+    with pytest.raises(ValueError, match="different problem set"):
+        build.pin_problem_set(log, ["HumanEval/0"])
+
+
+def test_cli_generate_sample_with_pilot_config(tmp_path, monkeypatch):
+    monkeypatch.setenv("VERIFIER_CONFIG", str(build.Path(__file__).resolve().parents[1]
+                                              / "configs" / "pilot_local.toml"))
+    args = ["generate", "--run-id", "p", "--backend", "mock", "--sample", "3",
+            "--results", str(tmp_path)]
+    assert build.main(args) == 0
+    ids = json.loads((tmp_path / "p" / "problems.json").read_text())
+    assert len(ids) == 3
+    assert len(list(RunLog("p", tmp_path).records())) == 30
+    assert build.main(args) == 0  # resume: same sample, no new calls
+    with pytest.raises(ValueError, match="different problem set"):
+        build.main(["generate", "--run-id", "p", "--backend", "mock", "--sample", "4",
+                    "--results", str(tmp_path)])
+
+
 def test_extract_solution_from_chat_response(few):
     p = few["HumanEval/23"]
     resp = MockCoder(few)._respond(build.build_prompt(p), seed=0)

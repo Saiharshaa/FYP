@@ -74,8 +74,17 @@ class ClientError(RuntimeError):
 class OpenAICompatibleClient:
     RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
 
+    CORE_FIELDS = {"model", "messages", "temperature", "seed", "max_tokens"}
+
     def __init__(self, timeout_s: float = 300.0, max_retries: int = 4,
+                 extra_body: dict | None = None,
                  transport: httpx.BaseTransport | None = None):
+        # extra_body: server-specific request fields, e.g. llama.cpp's
+        # cache_prompt=false (needed for seed determinism). Never secrets.
+        clash = self.CORE_FIELDS & set(extra_body or {})
+        if clash:
+            raise ClientError(f"extra_body may not override {sorted(clash)}")
+        self.extra_body = dict(extra_body or {})
         base = os.environ.get("VERIFIER_BASE_URL")
         model = os.environ.get("VERIFIER_MODEL")
         if not base or not model:
@@ -93,7 +102,7 @@ class OpenAICompatibleClient:
 
     def generate(self, prompt: str, temperature: float, seed: int,
                  max_tokens: int) -> Generation:
-        body = {"model": self.model,
+        body = {**self.extra_body, "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": temperature, "seed": seed, "max_tokens": max_tokens}
         for attempt in range(self.max_retries + 1):

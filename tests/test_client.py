@@ -61,6 +61,28 @@ def test_openai_request_and_parse(env):
     assert g.latency_s >= 0
 
 
+def test_extra_body_is_sent(env):
+    seen = {}
+
+    def handler(req):
+        seen["body"] = json.loads(req.content)
+        return httpx.Response(200, json=ok_payload())
+
+    make(handler, extra_body={"cache_prompt": False}).generate("p", 0.5, 3, 8)
+    assert seen["body"]["cache_prompt"] is False
+    assert seen["body"]["seed"] == 3 and seen["body"]["model"] == "qwen-coder-7b"
+
+
+def test_extra_body_cannot_override_core_fields(env):
+    with pytest.raises(C.ClientError, match="may not override"):
+        make(lambda r: httpx.Response(200, json=ok_payload()), extra_body={"seed": 1})
+
+
+def test_make_client_passes_config_options(env):
+    c = C.make_client("openai", extra_body={"cache_prompt": False})
+    assert c.extra_body == {"cache_prompt": False}
+
+
 def test_no_auth_header_without_key(env, monkeypatch):
     monkeypatch.delenv("VERIFIER_API_KEY")
     seen = {}

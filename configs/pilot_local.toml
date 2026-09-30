@@ -1,0 +1,15 @@
+# Pilot on the laptop (WSL2, CPU): Qwen2.5-Coder-1.5B-Instruct q4_k_m served
+# by llama.cpp (scripts/serve_local_llm.sh). Decision 2026-09-30.
+#   export VERIFIER_CONFIG=configs/pilot_local.toml
+#   export VERIFIER_BASE_URL=http://127.0.0.1:8080/v1
+#   export VERIFIER_MODEL=qwen2.5-coder-1.5b-instruct-q4km
+extends = "default.toml"
+
+[pilot]
+n_problems = 40              # x 10 candidates = 400
+sample_seed = 2026
+
+[model.openai]
+# llama.cpp reuses the KV cache across requests by default, which can make
+# same-seed outputs differ; disable it so seeds are reproducible.
+extra_body = { cache_prompt = false }

@@ -20,6 +20,7 @@ import ast
 import hashlib
 import json
 import os
+import random
 import re
 import sys
 from collections import Counter
@@ -55,13 +56,33 @@ def generation_tasks(problems: dict[str, dict], temperature: float,
             for t, p in problems.items() for i in range(samples)]
 
 
+def select_problems(problems: dict[str, dict], n: int, seed: int) -> dict[str, dict]:
+    """Reproducible random subset (pilot runs); ids returned in dataset order."""
+    chosen = set(random.Random(seed).sample(sorted(problems), n))
+    return {t: p for t, p in problems.items() if t in chosen}
+
+
+def pin_problem_set(log: RunLog, problem_ids: list[str]) -> None:
+    """Record the run's problem ids; refuse to resume with a different set."""
+    path = log.path.with_name("problems.json")
+    if path.exists():
+        pinned = json.loads(path.read_text())
+        if pinned != problem_ids:
+            raise ValueError(f"run {log.run_id!r} was started on a different problem "
+                             f"set ({len(pinned)} ids in {path}); use a new run_id")
+    else:
+        path.write_text(json.dumps(problem_ids, indent=1))
+
+
 def generate(log: RunLog, client: ModelClient, problems: dict[str, dict],
              gen_cfg: dict) -> int:
     """Generate every missing candidate; returns the number of model calls made."""
     models = {r.model for r in log.records() if r.strategy == STRATEGY}
     if models - {client.model}:
         raise ValueError(f"run {log.run_id!r} already holds candidates from "
-                         f"{sorted(models)}; use a new run_id for {client.model!r}")
+                         f"{sorted(models)} (as reported by the server); use a new "
+                         f"run_id for {client.model!r}, or set VERIFIER_MODEL to the "
+                         f"served name if it is the same model")
     made = 0
     for temperature in gen_cfg["temperatures"]:
         tasks = generation_tasks(problems, temperature, gen_cfg["samples_per_temperature"])
@@ -185,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--run-id", required=True)
     g.add_argument("--backend", choices=["openai", "mock"], default="openai")
     g.add_argument("--limit", type=int, help="first N problems only (dry runs)")
+    g.add_argument("--sample", type=int, nargs="?", const=-1, metavar="N",
+                   help="random subset of N problems ([pilot] sample_seed); "
+                        "bare --sample uses [pilot] n_problems")
     l = sub.add_parser("label", help="execute + label candidates (WSL2 only)")
     l.add_argument("--run-id", required=True)
     l.add_argument("--workers", type=int)
@@ -200,11 +224,16 @@ def main(argv: list[str] | None = None) -> int:
         problems = load_problems(cfg["corpus"].get("exclude", []))
         if args.limit:
             problems = dict(list(problems.items())[: args.limit])
+        if args.sample is not None:
+            pilot = cfg.get("pilot", {})
+            n = pilot["n_problems"] if args.sample == -1 else args.sample
+            problems = select_problems(problems, n, pilot.get("sample_seed", 0))
+        pin_problem_set(log, list(problems))
         if args.backend == "mock":
             from verifier.corpus.mock_coder import MockCoder
             client = MockCoder(problems)
         else:
-            client = make_client("openai")
+            client = make_client("openai", **cfg.get("model", {}).get("openai", {}))
         made = generate(log, client, problems, cfg["generation"])
         print(f"{made} model calls; log at {log.path}")
     else:
