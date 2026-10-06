@@ -213,3 +213,64 @@ identical. Serial takes about 275 s versus 138 s.
 - Should the pickle of reference times be recomputed on the labelling machine
   immediately before labelling, so limits reflect current conditions?
 - TC1 generation job script (SLURM + vLLM), once the model is chosen.
+
+## 2026-09-30 to 2026-10-06: RQ1 pilot (local 1.5B model): setup and operations
+
+**Decisions (user, 2026-09-30)**
+- Pilot the actual research result before TC1 is available: a real corpus,
+  judgement-only strategies, and a confusion matrix.
+- This lifts the earlier hold on strategies, but only for (a) direct, (b)
+  reason-then-judge and (e) majority vote over seeds. (c)/(d) and OpenClaw
+  are still out of scope.
+- Model: Qwen2.5-Coder-1.5B-Instruct on CPU.
+- Scale: 40 problems × 10 candidates.
+- Labelling is serial by default (`[labelling] workers = 1`), resolving the
+  previous entry's open question.
+
+**Setup**
+- **Model:** `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` from
+  `Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF`, sha256
+  `cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046`
+  (verified against the HF API).
+- **Server:** llama.cpp in Docker,
+  `ghcr.io/ggml-org/llama.cpp@sha256:f9115c95639e60abc09d4ea83b26fd4d56c66aa1174594393335a514da00c283`
+  (the image is ~1.2 GB; it was pulled before its size was known, which went
+  over the 1 GB ask-first line). Options: `--parallel 1`, 8 threads,
+  `cache_prompt=false`, and the request seed. Smoke test: same seed twice
+  gives identical text, and `usage` is present.
+- **Pilot problems:** `random.Random(2026).sample` of 40 from the 163 →
+  HumanEval/0, 3, 10, 15, 17, 18, 23, 24, 25, 31, 34, 39, 43, 49, 53, 56,
+  65, 68, 70, 79, 80, 82, 84, 87, 88, 89, 90, 96, 114, 115, 116, 118, 120,
+  121, 123, 125, 146, 150, 153, 156 (pinned in `results/pilot-q15b/problems.json`).
+- **Generation:** 5 samples × T ∈ {0.2, 0.8}, max 1024 tokens, EvalPlus
+  instruct prompt.
+- **Verification:** T = 0.7, seeds 0–2.
+  - (a) `direct` asks for the verdict only (16 tokens);
+  - (b) `reason` thinks step by step and then gives the verdict (768 tokens);
+  - the verifier sees the problem statement and the sanitized solution only;
+  - this is self-verification: the generator and verifier are the same model.
+- **Run:** `scripts/run_pilot.sh` puts seed 0 of both strategies first, then
+  writes a report, then runs seeds 1–2 for the vote.
+
+**Operations: what went wrong**
+- **WSL2 idle shutdown.** WSL stops the VM shortly after the last Windows-side
+  `wsl.exe` client exits, killing background (`nohup`) jobs and the Docker
+  container with it. A pilot window that closed after ~20 s took the VM down
+  the same way (`last -x`: shutdown 18:05, reboot 18:06 on 2026-10-06).
+  Fix: run detached (`setsid nohup`) plus a hidden keep-alive `wsl.exe` that
+  exits when `run_pilot.sh` ends.
+- **Memory pressure.** On a 16 GB laptop with Chrome open, Windows had
+  < 1 GB free. Claude Code stopped its own background jobs twice (the first
+  pilot attempt at 87/400, and a watcher). Fix: `%USERPROFILE%\.wslconfig`
+  (2026-10-05) with `memory=5GB` and `autoMemoryReclaim=dropCache`; the
+  pilot runs outside Claude Code.
+- **Throughput.** Prompt ~50–60 tok/s, generation ~15–25 tok/s on the
+  i7-1255U; thread count 4–10 made little difference. Under memory pressure
+  a generation took ~25–30 s against ~13 s unloaded. Laptop sleep pauses
+  the run; uptime only counts awake time.
+- **Bookkeeping.** All logged generations used an 8-thread server. The 4–10
+  thread benchmark servers ran only while generation was paused: candidate
+  #21 was logged at 04:05Z, generation resumed at 04:08Z on a fresh 8-thread
+  server, and the thread count can change llama.cpp outputs.
+
+**Results:** to be added when `reports/pilot-q15b/report.md` exists.
