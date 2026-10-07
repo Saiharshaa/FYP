@@ -297,4 +297,44 @@ Implications:
   (`run_pilot.sh` is running and must not be edited mid-run): skip labelling
   when `corpus.jsonl` already covers every logged candidate.
 
+**First result (2026-10-07): strategy (a) `direct` is degenerate.** Seed 0
+returned the identical string `VERDICT: CORRECT` for **400/400** candidates,
+at T = 0.7. The log is clean: 0 duplicates, 0 missing.
+- So FAR = 100% on all 127 incorrect candidates, in every failure category,
+  FRR = 0% and MCC = 0.000, which is exactly the always-accept baseline.
+- Mean cost: 429 input / 7 output tokens, 6.7 s per call.
+- Confound: the prompt lists `VERDICT: CORRECT` before `VERDICT: INCORRECT`,
+  and a 1.5B model may simply copy the first option.
+
+**Early (b) `reason`, seed 0, first ~50 calls:**
+- Its verdicts vary: it rejects some correct code and accepts most
+  incorrect code. So it is not degenerate.
+- Two format problems:
+  - Some answers end with LaTeX `\boxed{\text{CORRECT}}` instead of the
+    requested `VERDICT:` line. Parser v1 treats these as no verdict, which
+    counts as reject.
+  - Some answers hit the 768-token cap before giving any verdict.
+- Calls take 30–90 s each (300–768 output tokens at ~9–12 tok/s).
+
+**Decisions (user, 2026-10-07)**
+1. **Answer-order control:** add strategy `direct-swapped`, identical to
+   `direct` except INCORRECT is listed first, and run it on the same 400
+   (seed 0). If it rejects everything, (a)'s result is a format-following
+   artefact rather than a judgement.
+2. **Parser v2:**
+   - v2 also accepts `\boxed{CORRECT|INCORRECT}` when no `VERDICT:` line
+     exists.
+   - v1 stays the pre-registered run-time parser.
+   - The report re-derives verdicts from the logged raw responses under both
+     parsers and shows them side by side. It also checks that v1 re-parsing
+     reproduces the logged verdicts (452/452 so far).
+3. **Skip direct seeds 1–2**, since every answer was the same. Run order
+   (`scripts/run_pilot_phase2.sh`):
+   1. finish reason seed 0;
+   2. report;
+   3. `direct-swapped` seed 0;
+   4. report;
+   5. reason seeds 1–2, for the vote;
+   6. final report.
+
 **Results:** to be added when `reports/pilot-q15b/report.md` exists.
