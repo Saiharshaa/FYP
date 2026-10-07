@@ -273,4 +273,28 @@ identical. Serial takes about 275 s versus 138 s.
   #21 was logged at 04:05Z, generation resumed at 04:08Z on a fresh 8-thread
   server, and the thread count can change llama.cpp outputs.
 
+**Corpus (labelled 2026-10-06 23:22, serial):** 273/400 correct (68.2%),
+inside the 10–90% guard. The 127 failures: 101 `wrong_output`, 17 `error`,
+9 `timeout`.
+
+**Finding: re-labelling reproduces correctness but not the timeout/slow
+boundary.** The resume on 2026-10-07 re-labelled the whole corpus, because
+the label stage always re-runs. Comparing against the 2026-10-06 copy
+(`results/pilot-q15b/corpus.2026-10-06.jsonl`):
+- correctness changed for 0/400 candidates, and no solution changed;
+- `failure_category` changed for 3/400, all `timeout` → `slow`: HumanEval/39
+  T0.2-1 and HumanEval/25 T0.8-0 / T0.8-4.
+- Each returns the expected answer in 4.46–4.78 s against the 5.0 s limit
+  (1.0 s evalplus limit × 5).
+- On 10-06 the laptop was memory-starved and swapping, and the same re-runs
+  hit 5.0 s.
+
+Implications:
+- Category labels near the limit depend on host load. Label the final
+  corpus once, on a quiet machine, and report how many re-run times fall
+  within ±20% of the limit.
+- The label stage should not silently re-label on resume. Fix after this run
+  (`run_pilot.sh` is running and must not be edited mid-run): skip labelling
+  when `corpus.jsonl` already covers every logged candidate.
+
 **Results:** to be added when `reports/pilot-q15b/report.md` exists.
