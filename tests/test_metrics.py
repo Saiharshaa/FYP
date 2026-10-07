@@ -10,7 +10,7 @@ from verifier.corpus.labelling import load_problems
 from verifier.harness.client import MockClient
 from verifier.harness.runlog import RunLog
 from verifier.harness.verify import verify
-from verifier.strategies import DIRECT
+from verifier.strategies import DIRECT, REASON
 
 
 def items_from(spec):
@@ -111,7 +111,9 @@ def test_report_end_to_end(tmp_path, problems):
     verify(log, MockClient(judge, model="judge"), rows, problems, DIRECT, [0, 1, 2], 0.7,
            corpus_run="corp", corpus_meta={"models": ["gen"]})
     rep = R.build_report(tmp_path, "ver", n_boot=200)
-    s = rep["strategies"]["direct"]
+    s = rep["strategies"]["v1"]["direct"]
+    assert rep["strategies"]["v2"]["direct"]["single_call"] == s["single_call"]  # no boxed answers
+    assert rep["parser_check"]["v1_reparse_mismatches"] == 0
 
     sc = s["single_call"]
     assert sc["tp"] + sc["fp"] + sc["tn"] + sc["fn"] == sc["n"] == len(rows) * 3
@@ -127,6 +129,27 @@ def test_report_end_to_end(tmp_path, problems):
 
     md = R.to_markdown(rep)
     assert "| Strategy |" in md and "majority vote (3 seeds)" in md and "wrong_output" in md
+    assert "direct [v2]" not in md  # v2 rows only where v2 changes a verdict
+
+
+def boxed_judge(prompt, seed):
+    # good code: boxed CORRECT (v1: no verdict); bad code: proper VERDICT line
+    return "\\boxed{\\text{CORRECT}}" if "good" in prompt else "VERDICT: INCORRECT"
+
+
+def test_report_parser_v2_recovers_boxed_verdicts(tmp_path, problems):
+    rows = make_corpus(tmp_path)
+    verify(RunLog("ver", tmp_path), MockClient(boxed_judge, model="judge"), rows, problems,
+           REASON, [0], 0.7, corpus_run="corp")
+    rep = R.build_report(tmp_path, "ver", n_boot=50)
+    v1 = rep["strategies"]["v1"]["reason"]["single_call"]
+    v2 = rep["strategies"]["v2"]["reason"]["single_call"]
+    assert v1["abstain"] == 6 and v1["frr"] == 1          # boxed answers count as rejects
+    assert v2["abstain"] == 0 and v2["frr"] == 0 and v2["accuracy"] == 1
+    assert rep["parser_check"] == {"calls": 12, "v1_reparse_mismatches": 0,
+                                   "v2_changed_calls": {"reason": 6}}
+    md = R.to_markdown(rep)
+    assert "reason [v1]" in md and "reason [v2]" in md
 
 
 def test_partial_seed_is_excluded_from_pooled(tmp_path, problems):
@@ -135,7 +158,7 @@ def test_partial_seed_is_excluded_from_pooled(tmp_path, problems):
     client = MockClient(judge, model="judge")
     verify(log, client, rows, problems, DIRECT, [0], 0.7, corpus_run="corp")
     verify(log, client, rows[:5], problems, DIRECT, [1], 0.7, corpus_run="corp")  # partial
-    s = R.build_report(tmp_path, "ver", n_boot=50)["strategies"]["direct"]
+    s = R.build_report(tmp_path, "ver", n_boot=50)["strategies"]["v1"]["direct"]
     assert s["seeds_complete"] == [0] and s["seeds_partial"] == {1: 5}
     assert s["single_call"]["n"] == len(rows) and "vote" not in s
 

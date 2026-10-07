@@ -20,11 +20,13 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import Callable
 
 from verifier.analysis.metrics import (
     Item, majority_vote, score, score_with_ci, seed_spread)
 from verifier.harness.runlog import RunLog
 from verifier.harness.verify import load_corpus
+from verifier.strategies import PARSERS, parse_verdict, parse_verdict_v2
 
 
 def _items(rows: list[dict], verdicts: dict[tuple, bool | None]) -> list[Item]:
@@ -56,7 +58,8 @@ def corpus_summary(rows: list[dict], meta: dict) -> dict:
     }
 
 
-def strategy_report(rows: list[dict], recs: list, n_boot: int) -> dict:
+def strategy_report(rows: list[dict], recs: list, n_boot: int,
+                    parse: Callable[[str], bool | None] = parse_verdict) -> dict:
     by_seed: dict[int, dict[tuple, object]] = defaultdict(dict)
     for r in recs:
         by_seed[r.seed][(r.problem_id, r.candidate_id)] = r
@@ -67,14 +70,17 @@ def strategy_report(rows: list[dict], recs: list, n_boot: int) -> dict:
     if not complete:
         return out
 
-    per_seed = {s: _items(rows, {k: by_seed[s][k].verdict for k in keys}) for s in complete}
+    # Verdicts are re-derived from the logged raw responses with `parse`, so a
+    # parser revision never needs the model to be re-run.
+    verdict = {s: {k: parse(by_seed[s][k].response) for k in keys} for s in complete}
+    per_seed = {s: _items(rows, verdict[s]) for s in complete}
     pooled = [i for s in complete for i in per_seed[s]]
     out["single_call"] = score_with_ci(pooled, n_boot)
     out["abstain_excluded"] = score(pooled, abstain="exclude")
     out["per_seed"] = {s: score(v) for s, v in per_seed.items()}
     out["seed_spread"] = seed_spread(out["per_seed"])
     if len(complete) >= 2:
-        votes = {k: majority_vote([by_seed[s][k].verdict for s in complete]) for k in keys}
+        votes = {k: majority_vote([verdict[s][k] for s in complete]) for k in keys}
         out["vote"] = {**score_with_ci(_items(rows, votes), n_boot), "n_seeds": len(complete)}
 
     row_of = {(r["problem_id"], r["candidate_id"]): r for r in rows}
@@ -108,6 +114,9 @@ def build_report(results: str | Path, run_id: str, n_boot: int = 2000) -> dict:
     recs = defaultdict(list)
     for r in RunLog(run_id, results).records():
         recs[r.strategy].append(r)
+    all_recs = [r for v in recs.values() for r in v]
+    # v1 is the run-time parser: re-parsing must reproduce the logged verdicts.
+    v1_mismatch = sum(parse_verdict(r.response) != r.verdict for r in all_recs)
     return {
         "verify_run": run_id, "corpus_run": vmeta["corpus_run"],
         "verifier_model": vmeta["verifier_model"], "condition": vmeta.get("condition"),
@@ -120,7 +129,14 @@ def build_report(results: str | Path, run_id: str, n_boot: int = 2000) -> dict:
             "always_accept": score(_items(rows, defaultdict(lambda: True))),
             "always_reject": score(_items(rows, defaultdict(lambda: False))),
         },
-        "strategies": {s: strategy_report(rows, v, n_boot) for s, v in sorted(recs.items())},
+        "parser_check": {
+            "calls": len(all_recs), "v1_reparse_mismatches": v1_mismatch,
+            "v2_changed_calls": {s: sum(parse_verdict(r.response) != parse_verdict_v2(r.response)
+                                        for r in v) for s, v in sorted(recs.items())},
+        },
+        "strategies": {p: {s: strategy_report(rows, v, n_boot, fn)
+                           for s, v in sorted(recs.items())}
+                       for p, fn in PARSERS.items()},
         "n_boot": n_boot,
     }
 
@@ -154,30 +170,43 @@ def to_markdown(rep: dict) -> str:
          "Accept = verdict CORRECT. FAR = share of incorrect code accepted; FRR = share of "
          "correct code rejected; no verdict counts as reject. 95% CIs: bootstrap over "
          f"problems ({rep['n_boot']} resamples).", "",
+         "Verdict parsers: **v1** is the pre-registered run-time parser (`VERDICT: X`, else a "
+         "leading bare word); **v2** also accepts a LaTeX `\\boxed{CORRECT}` answer. Rows marked "
+         "v2 appear only where v2 changes a verdict.", "",
          "| Strategy | n | Accuracy | FAR (false accept) | FRR (false reject) | MCC | No verdict | Out tok | Latency |",
          "|---|---|---|---|---|---|---|---|---|"]
-    for name, s in rep["strategies"].items():
+    changed = rep["parser_check"]["v2_changed_calls"]
+    shown = [("v1", n) for n in rep["strategies"]["v1"]]
+    shown += [("v2", n) for n in rep["strategies"]["v2"] if changed.get(n)]
+    for parser, name in sorted(shown, key=lambda pn: (pn[1], pn[0])):
+        s, tag = rep["strategies"][parser][name], f"{name} [{parser}]"
         if "single_call" not in s:
-            L.append(f"| {name} | incomplete: {s['seeds_partial']} | | | | | | | |")
+            L.append(f"| {tag} | incomplete: {s['seeds_partial']} | | | | | | | |")
             continue
         sc, cost = s["single_call"], s["cost"]
-        L.append(f"| {name} (single call, seeds {s['seeds_complete']}) | {sc['n']} | "
+        L.append(f"| {tag} single call, seeds {s['seeds_complete']} | {sc['n']} | "
                  f"{_ci(sc, 'accuracy')} | {_ci(sc, 'far')} | {_ci(sc, 'frr')} | "
                  f"{_ci(sc, 'mcc', False)} | {_p(sc['abstain_rate'])} | "
                  f"{cost['mean_output_tokens']:.0f} | {cost['mean_latency_s']:.1f}s |")
         if "vote" in s:
             v = s["vote"]
-            L.append(f"| {name} majority vote ({v['n_seeds']} seeds) | {v['n']} | "
+            L.append(f"| {tag} majority vote ({v['n_seeds']} seeds) | {v['n']} | "
                      f"{_ci(v, 'accuracy')} | {_ci(v, 'far')} | {_ci(v, 'frr')} | "
                      f"{_ci(v, 'mcc', False)} | – | ×{v['n_seeds']} | ×{v['n_seeds']} |")
     for name, b in rep["baselines"].items():
         L.append(f"| baseline: {name.replace('_', ' ')} | {b['n']} | {_p(b['accuracy'])} | "
                  f"{_p(b['far'])} | {_p(b['frr'])} | {b['mcc']:.3f} | – | – | – |")
+    pc = rep["parser_check"]
+    L += ["", f"Parser check: {pc['calls']} logged calls; re-parsing with v1 reproduces the "
+          f"logged verdict for all but {pc['v1_reparse_mismatches']}; v2 changes "
+          + ", ".join(f"{n}: {k}" for n, k in changed.items()) + " calls."]
 
-    for name, s in rep["strategies"].items():
+    for parser, name in sorted(shown, key=lambda pn: (pn[1], pn[0])):
+        s = rep["strategies"][parser][name]
         if "single_call" not in s:
             continue
-        L += ["", f"## {name}", "", "False-accept rate by failure category (incorrect code only):", "",
+        L += ["", f"## {name} [{parser}]", "",
+              "False-accept rate by failure category (incorrect code only):", "",
               "| Category | n calls | Accepted | FAR |", "|---|---|---|---|"]
         for k, f in s["far_by_failure_category"].items():
             L.append(f"| {k} | {f['n']} | {f['accepted']} | {_p(f['far'])} |")

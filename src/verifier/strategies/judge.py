@@ -38,12 +38,24 @@ or
 VERDICT: INCORRECT
 """
 
+# Control for answer-order bias: identical to DIRECT except that the two
+# allowed answers are listed in the opposite order. Added 2026-10-07 after
+# DIRECT answered "VERDICT: CORRECT" for 400/400 pilot candidates.
+DIRECT_SWAPPED_TEMPLATE = _HEADER + """
+Do not explain. Reply with exactly one line:
+VERDICT: INCORRECT
+or
+VERDICT: CORRECT
+"""
+
 _VERDICT = re.compile(r"VERDICT\W{0,4}(INCORRECT|CORRECT)\b", re.I)
 _LEADING = re.compile(r"^\W*(INCORRECT|CORRECT)\b", re.I)
+_BOXED = re.compile(r"\\boxed\{\s*(?:\\text(?:bf)?\{\s*)?(INCORRECT|CORRECT)\b", re.I)
 
 
 def parse_verdict(text: str) -> bool | None:
-    """The last `VERDICT: X` wins; failing that, a reply that *starts* with the
+    """Parser v1 (pre-registered, used at run time and stored in the log).
+    The last `VERDICT: X` wins; failing that, a reply that *starts* with the
     bare word CORRECT/INCORRECT. Anything else is no verdict (None)."""
     matches = _VERDICT.findall(text or "")
     word = matches[-1] if matches else None
@@ -51,6 +63,23 @@ def parse_verdict(text: str) -> bool | None:
         m = _LEADING.match(text or "")
         word = m.group(1) if m else None
     return None if word is None else word.upper() == "CORRECT"
+
+
+def parse_verdict_v2(text: str) -> bool | None:
+    """Parser v2 (2026-10-07, applied post hoc to logged responses): v1, plus
+    a LaTeX `\\boxed{CORRECT}` / `\\boxed{\\text{INCORRECT}}` answer when no
+    `VERDICT:` line is present. Added because the 1.5B model often ends its
+    reasoning with a boxed verdict instead of the requested line."""
+    matches = _VERDICT.findall(text or "")
+    if matches:
+        return matches[-1].upper() == "CORRECT"
+    boxed = _BOXED.findall(text or "")
+    if boxed:
+        return boxed[-1].upper() == "CORRECT"
+    return parse_verdict(text)
+
+
+PARSERS = {"v1": parse_verdict, "v2": parse_verdict_v2}
 
 
 @dataclass(frozen=True)
@@ -73,3 +102,4 @@ class JudgeStrategy:
 
 DIRECT = JudgeStrategy("direct", DIRECT_TEMPLATE, max_tokens=16)
 REASON = JudgeStrategy("reason", REASON_TEMPLATE, max_tokens=768)
+DIRECT_SWAPPED = JudgeStrategy("direct-swapped", DIRECT_SWAPPED_TEMPLATE, max_tokens=16)

@@ -6,7 +6,8 @@ from verifier.corpus.labelling import load_problems
 from verifier.harness import verify as V
 from verifier.harness.client import MockClient
 from verifier.harness.runlog import RunLog, audit
-from verifier.strategies import DIRECT, REASON, STRATEGIES, parse_verdict
+from verifier.strategies import (
+    DIRECT, DIRECT_SWAPPED, REASON, STRATEGIES, parse_verdict, parse_verdict_v2)
 
 
 @pytest.fixture(scope="module")
@@ -42,10 +43,34 @@ def test_parse_verdict(text, expected):
     assert parse_verdict(text) is expected
 
 
+@pytest.mark.parametrize("text,v1,v2", [
+    ("...the final verdict is:\n\\[\n\\boxed{\\text{CORRECT}}\n\\]", None, True),
+    ("\\boxed{INCORRECT}", None, False),
+    ("\\boxed{\\textbf{incorrect}}", None, False),
+    ("\\boxed{CORRECT} ... on reflection\nVERDICT: INCORRECT", False, False),  # VERDICT line wins
+    ("\\boxed{42}", None, None),
+    ("VERDICT: CORRECT", True, True),
+    ("Correct.", True, True),
+])
+def test_parser_v2_adds_boxed_only(text, v1, v2):
+    assert parse_verdict(text) is v1
+    assert parse_verdict_v2(text) is v2
+
+
 def test_strategies_registered():
-    assert set(STRATEGIES) == {"direct", "reason"}
-    assert DIRECT.max_tokens < REASON.max_tokens
-    assert DIRECT.template_sha256 != REASON.template_sha256
+    assert set(STRATEGIES) == {"direct", "direct-swapped", "reason"}
+    assert DIRECT.max_tokens < REASON.max_tokens == 768
+    assert len({DIRECT.template_sha256, DIRECT_SWAPPED.template_sha256,
+                REASON.template_sha256}) == 3
+
+
+def test_swapped_control_differs_only_in_answer_order(problems):
+    p, sol = problems["HumanEval/0"], "def f():\n    pass\n"
+    a, b = DIRECT.build_prompt(p, sol), DIRECT_SWAPPED.build_prompt(p, sol)
+    assert a.replace("VERDICT: CORRECT", "@").replace("VERDICT: INCORRECT", "VERDICT: CORRECT") \
+            .replace("@", "VERDICT: INCORRECT") == b
+    assert b.index("VERDICT: INCORRECT") < b.index("VERDICT: CORRECT")
+    assert DIRECT_SWAPPED.max_tokens == DIRECT.max_tokens
 
 
 @pytest.mark.parametrize("strategy", [DIRECT, REASON], ids=lambda s: s.name)
