@@ -338,3 +338,67 @@ at T = 0.7. The log is clean: 0 duplicates, 0 missing.
    6. final report.
 
 **Results:** to be added when `reports/pilot-q15b/report.md` exists.
+
+## 2026-11-17: pilot phase 2 resumed; answer-order control result
+
+**Operations.**
+- Phase 2 stalled on 2026-10-08 at 01:01, with `direct-swapped` at 296/400.
+  The laptop slept, and nothing was running afterwards.
+- Restarted 2026-11-17 15:25 with `bash scripts/run_pilot_phase2.sh`
+  (detached, plus a hidden keep-alive `wsl.exe`). It resumed from the log:
+  the reason seed 0 remainder was 0 calls, and `direct-swapped` completed the
+  last 104.
+- No re-labelling happened (phase 2 never labels).
+
+**Reason seed 0** (report 2026-10-08, v1 parser):
+- Accuracy 56.2%, FAR 93.7%, FRR 20.5%, MCC −0.180 [−0.302, −0.055].
+- No verdict on 11.2% of calls.
+- Parser v2 changes 8 calls and leaves MCC at −0.182.
+- Worse than the always-accept baseline (68.2% accuracy, MCC 0). Asking the
+  1.5B model to reason first makes it reject correct code without catching
+  incorrect code.
+
+**Answer-order control, `direct-swapped` seed 0** (prompt lists
+`VERDICT: INCORRECT` first):
+
+| | correct code (273) | incorrect code (127) |
+|---|---|---|
+| accepted | 255 | **127** |
+| rejected | 18 | **0** |
+
+- FAR 100.0% (unchanged from `direct`), FRR 6.6% [0.4%, 15.7%],
+  MCC −0.148 [−0.240, −0.035].
+- Responses: 377× `VERDICT: CORRECT`, 18× `VERDICT: INCORRECT`, 5× bare
+  `CORRECT`. All 400 calls finished with `stop`; median latency 6.8 s.
+- All 18 rejections fall on **correct** candidates, in only 4 problems.
+
+**Interpretation.**
+- The `direct` result (400/400 CORRECT) is not an answer-order artefact.
+  With INCORRECT listed first, the model still accepts 95.5% of candidates
+  and every incorrect one.
+- The few rejections it does make carry negative information: they land
+  only on correct code, which is why MCC is below zero.
+- At 1.5B with self-verification, single-call judgement shows no ability to
+  tell correct from incorrect code under either answer order. That is
+  evidence for H1's premise, that verifier reliability cannot be assumed.
+  Its scope is limited to one small model judging its own output, and it
+  needs the larger cross-model runs (ASPIRE 2A, below) before it
+  generalises.
+
+**Still running:** reason seeds 1–2 for the majority vote (e). Seed 1
+finished (400/400) and seed 2 is under way. The report regenerates when
+they finish.
+
+**Compute: ASPIRE 2A (NSCC) instead of, or alongside, TC1.**
+- NSCC account `saiharsh` has the personal project `personal-saiharsh`
+  (100k SU ≈ 1,560 A100-40GB GPU-hours at 64 SU/GPU-h).
+- Access is via the NTU HPCC jumphost (172.21.26.100) to
+  `aspire2antu.nscc.sg`. Direct login is refused, and off campus it needs
+  VPNGate (pending).
+- The scheduler is **PBS Pro, not SLURM**: `qsub`, `-q normal`,
+  `-l select=1:ngpus=1:mem=110g`. Each GPU comes with 16 CPUs and 110 GB.
+  Standard GPU jobs run up to 24 h, and `glong` up to 120 h.
+- The A100 (sm_80) answers the earlier V100/vLLM compatibility concern.
+- TC1 form filled (`Documents/FYP_TC1/`), kept as a fallback.
+- Next: GPU smoke test (`scripts/aspire/gpu_smoke.pbs`), then a vLLM
+  inference job (`scripts/aspire/`).

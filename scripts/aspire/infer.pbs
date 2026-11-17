@@ -1,0 +1,50 @@
+#!/bin/bash
+# Model inference on one A100: serve the model with vLLM inside the job, then
+# run ONE pipeline stage against it. Stages only call the model (generate /
+# verify); labelling (code execution) stays in WSL2. Resumable: every stage
+# appends to results/<run>/log.jsonl, so resubmit the same command after a
+# walltime kill. From ~/FYP on the login node:
+#
+#   qsub -v STAGE="verifier.corpus.build generate --run-id full-q7b --backend openai" scripts/aspire/infer.pbs
+#   qsub -v STAGE="verifier.harness.verify --corpus full-q7b --run-id verify-full-q7b --strategy reason --seeds 0 1 2" scripts/aspire/infer.pbs
+#
+# Optional: -v MODEL_ID=...,SERVED_NAME=...,MAX_MODEL_LEN=...
+#PBS -N fyp-infer
+#PBS -P personal-saiharsh
+#PBS -q normal
+#PBS -l select=1:ngpus=1:mem=110g
+#PBS -l walltime=24:00:00
+#PBS -j oe
+set -euo pipefail
+cd "$PBS_O_WORKDIR"
+: "${STAGE:?submit with: qsub -v STAGE='<python module and args>' scripts/aspire/infer.pbs}"
+. scripts/aspire/env.sh
+mkdir -p logs
+say() { echo "[$(date '+%H:%M:%S')] $*"; }
+export HF_HUB_OFFLINE=1          # weights were downloaded on the login node
+
+PORT=$((20000 + RANDOM % 10000))
+VLOG=logs/vllm-${PBS_JOBID%%.*}.log
+say "host $(hostname); GPU: $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)"
+say "vllm serve $MODEL_DIR as $SERVED_NAME on :$PORT (log $VLOG)"
+vllm serve "$MODEL_DIR" --served-model-name "$SERVED_NAME" \
+  --host 127.0.0.1 --port "$PORT" --dtype bfloat16 --seed 0 \
+  --max-model-len "${MAX_MODEL_LEN:-8192}" --gpu-memory-utilization 0.90 \
+  >"$VLOG" 2>&1 &
+VLLM_PID=$!
+trap 'kill $VLLM_PID 2>/dev/null || true' EXIT
+
+for _ in $(seq 1 90); do                      # up to 15 min for load + CUDA graphs
+  curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null && break
+  kill -0 "$VLLM_PID" 2>/dev/null || { say "vllm exited during startup"; tail -40 "$VLOG"; exit 1; }
+  sleep 10
+done
+curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null || { say "vllm not ready after 15 min"; tail -40 "$VLOG"; exit 1; }
+say "vllm ready"
+
+export VERIFIER_BASE_URL=http://127.0.0.1:$PORT/v1
+export VERIFIER_MODEL=$SERVED_NAME
+export VERIFIER_API_KEY=EMPTY
+say "run: python -m $STAGE"
+eval "python -m $STAGE"
+say "stage done"

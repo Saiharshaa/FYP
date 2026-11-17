@@ -1,0 +1,23 @@
+#!/bin/bash
+# ASPIRE 2A GPU smoke test: confirm A100 allocation and CUDA, and list what is
+# available for vLLM (modules + prebuilt containers). From the login node:
+#   cd ~/FYP && qsub scripts/aspire/gpu_smoke.pbs     (output: gpu_smoke.o<jobid>)
+#PBS -N gpu_smoke
+#PBS -P personal-saiharsh
+#PBS -q normal
+#PBS -l select=1:ngpus=1:mem=110g
+#PBS -l walltime=00:15:00
+#PBS -j oe
+cd "$PBS_O_WORKDIR"
+echo "== host $(hostname)  job $PBS_JOBID  $(date)"
+nvidia-smi
+echo "== modules (python / cuda / singularity / miniforge)"
+module -t avail 2>&1 | grep -iE 'python|cuda|singularity|apptainer|miniforge|conda' | sort -u
+echo "== containers"
+ls /app/apps/containers 2>&1
+find /app/apps/containers -maxdepth 3 \( -iname '*vllm*' -o -iname '*pytorch*' \) 2>/dev/null | head -20
+echo "== paths (scratch dir used by scripts/aspire/env.sh)"
+echo "HOME=$HOME"; ls -d /scratch/users/*/"$USER" /scratch/users/"$USER" /scratch/"$USER" 2>/dev/null
+echo "== internet from compute node?"; curl -sI -m 10 https://huggingface.co | head -1 || echo "no internet"
+echo "== storage"
+myquota 2>&1 | head -20

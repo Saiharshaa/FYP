@@ -48,7 +48,8 @@ themselves elsewhere and run in CI.
 ## Pipeline
 
 Two kinds of stage, so inference and code execution can run on different hosts
-(plan: inference on TC1, all candidate-code execution in WSL2):
+(plan: inference on a GPU cluster, NSCC ASPIRE 2A or CCDS TC1; all
+candidate-code execution in WSL2):
 
 | Stage | Command | Runs code? |
 |---|---|---|
@@ -72,6 +73,28 @@ bash scripts/pilot_status.sh     # progress, from any other window
 
 WSL2 stops its VM (and the model server) when no Windows-side `wsl` client is
 attached, so long runs need an attached session or a keep-alive.
+
+### GPU inference (NSCC ASPIRE 2A, PBS Pro)
+
+The GPU job serves the model with vLLM inside a PBS job on one A100-40GB, then
+runs one model-calling stage against it. Labelling never runs there.
+
+```bash
+# WSL: push code (and, for verify, the labelled corpus)
+bash scripts/aspire/sync.sh code
+bash scripts/aspire/sync.sh push-run <corpus-run>
+# ASPIRE login node, once: conda env + vllm, HumanEval+ cache, model weights
+bash scripts/aspire/setup_env.sh
+qsub scripts/aspire/gpu_smoke.pbs
+# ASPIRE: one stage per job (24 h walltime); resubmit the same line to resume
+qsub -v STAGE="verifier.corpus.build generate --run-id R --backend openai" scripts/aspire/infer.pbs
+qsub -v STAGE="verifier.harness.verify --corpus R --run-id V --strategy reason --seeds 0 1 2" scripts/aspire/infer.pbs
+# WSL: fetch model outputs, then label/report locally
+bash scripts/aspire/sync.sh pull-run R
+```
+
+Access is via the NTU HPCC jumphost; see `notebook/LAB_NOTEBOOK.md`
+(2026-11-17).
 
 ## Status
 

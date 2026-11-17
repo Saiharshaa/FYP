@@ -1,0 +1,1097 @@
+{
+  "verify_run": "verify-pilot-q15b",
+  "corpus_run": "pilot-q15b",
+  "verifier_model": "qwen2.5-coder-1.5b-instruct-q4km",
+  "condition": "self",
+  "verification_config": {
+    "direct": {
+      "seeds": [
+        0
+      ],
+      "temperature": 0.7,
+      "max_tokens": 16,
+      "template_sha256": "783663ded42b26835558cddc21d68f019fa149212e58661b57eb7c88f8a63bbc",
+      "updated": "2026-10-07T08:37:32+00:00"
+    },
+    "reason": {
+      "seeds": [
+        0
+      ],
+      "temperature": 0.7,
+      "max_tokens": 768,
+      "template_sha256": "bb06678a6882f307bd6466d817b741b0b668f029527c9bf72ee97dfd7738345c",
+      "updated": "2026-11-17T07:25:34+00:00"
+    },
+    "direct-swapped": {
+      "seeds": [
+        0
+      ],
+      "temperature": 0.7,
+      "max_tokens": 16,
+      "template_sha256": "cbfd2cace5c267943c7d8aece13862a99d72ad43cc932641fec2585950f19323",
+      "updated": "2026-11-17T07:25:37+00:00"
+    }
+  },
+  "corpus": {
+    "n_candidates": 400,
+    "n_problems": 40,
+    "n_correct": 273,
+    "base_rate": 0.6825,
+    "pass_rate_by_temperature": {
+      "0.2": 0.705,
+      "0.8": 0.66
+    },
+    "failure_categories": {
+      "wrong_output": 101,
+      "timeout": 6,
+      "slow": 3,
+      "error": 17
+    },
+    "n_response_syntax_error": 0,
+    "n_truncated": 0,
+    "generator_models": [
+      "qwen2.5-coder-1.5b-instruct-q4km"
+    ]
+  },
+  "labelling": {
+    "evalplus": {
+      "version": "0.4.0.dev13",
+      "commit": "6eb1e199c2e370518e7bf3e8eee6322c2b23c89c"
+    },
+    "dataset_version": "v0.1.10",
+    "dataset_md5": "fe585eb4df8c88d844eeb463ea4d0302",
+    "machine": {
+      "hostname": "DESKTOP-AH0HVC6",
+      "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+      "python": "3.12.3",
+      "cpu": "12th Gen Intel(R) Core(TM) i7-1255U",
+      "cpu_count": 12,
+      "sandbox": "subprocess",
+      "network_isolation": "namespace"
+    },
+    "timeout_multiplier": 5,
+    "labelling_workers": 1
+  },
+  "baselines": {
+    "always_accept": {
+      "tp": 273,
+      "fp": 127,
+      "tn": 0,
+      "fn": 0,
+      "abstain": 0,
+      "n": 400,
+      "accuracy": 0.6825,
+      "precision": 0.6825,
+      "recall": 1.0,
+      "far": 1.0,
+      "frr": 0.0,
+      "accept_rate": 1.0,
+      "mcc": 0.0,
+      "abstain_rate": 0.0
+    },
+    "always_reject": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 127,
+      "fn": 273,
+      "abstain": 0,
+      "n": 400,
+      "accuracy": 0.3175,
+      "precision": null,
+      "recall": 0.0,
+      "far": 0.0,
+      "frr": 1.0,
+      "accept_rate": 0.0,
+      "mcc": 0.0,
+      "abstain_rate": 0.0
+    }
+  },
+  "parser_check": {
+    "calls": 1200,
+    "v1_reparse_mismatches": 0,
+    "v2_changed_calls": {
+      "direct": 0,
+      "direct-swapped": 0,
+      "reason": 8
+    }
+  },
+  "strategies": {
+    "v1": {
+      "direct": {
+        "seeds_complete": [
+          0
+        ],
+        "seeds_partial": {},
+        "single_call": {
+          "tp": 273,
+          "fp": 127,
+          "tn": 0,
+          "fn": 0,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6825,
+          "precision": 0.6825,
+          "recall": 1.0,
+          "far": 1.0,
+          "frr": 0.0,
+          "accept_rate": 1.0,
+          "mcc": 0.0,
+          "abstain_rate": 0.0,
+          "ci95": {
+            "accuracy": [
+              0.56,
+              0.7925
+            ],
+            "far": [
+              1.0,
+              1.0
+            ],
+            "frr": [
+              0.0,
+              0.0
+            ],
+            "mcc": [
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "abstain_excluded": {
+          "tp": 273,
+          "fp": 127,
+          "tn": 0,
+          "fn": 0,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6825,
+          "precision": 0.6825,
+          "recall": 1.0,
+          "far": 1.0,
+          "frr": 0.0,
+          "accept_rate": 1.0,
+          "mcc": 0.0,
+          "abstain_rate": 0.0
+        },
+        "per_seed": {
+          "0": {
+            "tp": 273,
+            "fp": 127,
+            "tn": 0,
+            "fn": 0,
+            "abstain": 0,
+            "n": 400,
+            "accuracy": 0.6825,
+            "precision": 0.6825,
+            "recall": 1.0,
+            "far": 1.0,
+            "frr": 0.0,
+            "accept_rate": 1.0,
+            "mcc": 0.0,
+            "abstain_rate": 0.0
+          }
+        },
+        "seed_spread": {
+          "accuracy": {
+            "mean": 0.6825,
+            "sd": 0.0
+          },
+          "far": {
+            "mean": 1.0,
+            "sd": 0.0
+          },
+          "frr": {
+            "mean": 0.0,
+            "sd": 0.0
+          },
+          "mcc": {
+            "mean": 0.0,
+            "sd": 0.0
+          }
+        },
+        "far_by_failure_category": {
+          "error": {
+            "n": 17,
+            "accepted": 17,
+            "far": 1.0
+          },
+          "slow": {
+            "n": 3,
+            "accepted": 3,
+            "far": 1.0
+          },
+          "timeout": {
+            "n": 6,
+            "accepted": 6,
+            "far": 1.0
+          },
+          "wrong_output": {
+            "n": 101,
+            "accepted": 101,
+            "far": 1.0
+          }
+        },
+        "far_by_response_code_parses": {
+          "True": {
+            "n": 127,
+            "accepted": 127,
+            "far": 1.0
+          }
+        },
+        "by_temperature": {
+          "0.2": {
+            "tp": 141,
+            "fp": 59,
+            "tn": 0,
+            "fn": 0,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.705,
+            "precision": 0.705,
+            "recall": 1.0,
+            "far": 1.0,
+            "frr": 0.0,
+            "accept_rate": 1.0,
+            "mcc": 0.0,
+            "abstain_rate": 0.0
+          },
+          "0.8": {
+            "tp": 132,
+            "fp": 68,
+            "tn": 0,
+            "fn": 0,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.66,
+            "precision": 0.66,
+            "recall": 1.0,
+            "far": 1.0,
+            "frr": 0.0,
+            "accept_rate": 1.0,
+            "mcc": 0.0,
+            "abstain_rate": 0.0
+          }
+        },
+        "cost": {
+          "calls": 400,
+          "mean_input_tokens": 429.39,
+          "mean_output_tokens": 7,
+          "mean_latency_s": 6.6615287775,
+          "truncated_calls": 0
+        }
+      },
+      "direct-swapped": {
+        "seeds_complete": [
+          0
+        ],
+        "seeds_partial": {},
+        "single_call": {
+          "tp": 255,
+          "fp": 127,
+          "tn": 0,
+          "fn": 18,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6375,
+          "precision": 0.6675392670157068,
+          "recall": 0.9340659340659341,
+          "far": 1.0,
+          "frr": 0.06593406593406594,
+          "accept_rate": 0.955,
+          "mcc": -0.14805569184963568,
+          "abstain_rate": 0.0,
+          "ci95": {
+            "accuracy": [
+              0.5225,
+              0.7525
+            ],
+            "far": [
+              1.0,
+              1.0
+            ],
+            "frr": [
+              0.003703703703703704,
+              0.15748031496062992
+            ],
+            "mcc": [
+              -0.23983131054776297,
+              -0.03473788285094702
+            ]
+          }
+        },
+        "abstain_excluded": {
+          "tp": 255,
+          "fp": 127,
+          "tn": 0,
+          "fn": 18,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6375,
+          "precision": 0.6675392670157068,
+          "recall": 0.9340659340659341,
+          "far": 1.0,
+          "frr": 0.06593406593406594,
+          "accept_rate": 0.955,
+          "mcc": -0.14805569184963568,
+          "abstain_rate": 0.0
+        },
+        "per_seed": {
+          "0": {
+            "tp": 255,
+            "fp": 127,
+            "tn": 0,
+            "fn": 18,
+            "abstain": 0,
+            "n": 400,
+            "accuracy": 0.6375,
+            "precision": 0.6675392670157068,
+            "recall": 0.9340659340659341,
+            "far": 1.0,
+            "frr": 0.06593406593406594,
+            "accept_rate": 0.955,
+            "mcc": -0.14805569184963568,
+            "abstain_rate": 0.0
+          }
+        },
+        "seed_spread": {
+          "accuracy": {
+            "mean": 0.6375,
+            "sd": 0.0
+          },
+          "far": {
+            "mean": 1.0,
+            "sd": 0.0
+          },
+          "frr": {
+            "mean": 0.06593406593406594,
+            "sd": 0.0
+          },
+          "mcc": {
+            "mean": -0.14805569184963568,
+            "sd": 0.0
+          }
+        },
+        "far_by_failure_category": {
+          "error": {
+            "n": 17,
+            "accepted": 17,
+            "far": 1.0
+          },
+          "slow": {
+            "n": 3,
+            "accepted": 3,
+            "far": 1.0
+          },
+          "timeout": {
+            "n": 6,
+            "accepted": 6,
+            "far": 1.0
+          },
+          "wrong_output": {
+            "n": 101,
+            "accepted": 101,
+            "far": 1.0
+          }
+        },
+        "far_by_response_code_parses": {
+          "True": {
+            "n": 127,
+            "accepted": 127,
+            "far": 1.0
+          }
+        },
+        "by_temperature": {
+          "0.2": {
+            "tp": 134,
+            "fp": 59,
+            "tn": 0,
+            "fn": 7,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.67,
+            "precision": 0.694300518134715,
+            "recall": 0.950354609929078,
+            "far": 1.0,
+            "frr": 0.04964539007092199,
+            "accept_rate": 0.965,
+            "mcc": -0.12319322230415444,
+            "abstain_rate": 0.0
+          },
+          "0.8": {
+            "tp": 121,
+            "fp": 68,
+            "tn": 0,
+            "fn": 11,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.605,
+            "precision": 0.6402116402116402,
+            "recall": 0.9166666666666666,
+            "far": 1.0,
+            "frr": 0.08333333333333333,
+            "accept_rate": 0.945,
+            "mcc": -0.17315416054977323,
+            "abstain_rate": 0.0
+          }
+        },
+        "cost": {
+          "calls": 400,
+          "mean_input_tokens": 429.39,
+          "mean_output_tokens": 6.995,
+          "mean_latency_s": 7.175725675,
+          "truncated_calls": 0
+        }
+      },
+      "reason": {
+        "seeds_complete": [
+          0
+        ],
+        "seeds_partial": {},
+        "single_call": {
+          "tp": 217,
+          "fp": 119,
+          "tn": 8,
+          "fn": 56,
+          "abstain": 45,
+          "n": 400,
+          "accuracy": 0.5625,
+          "precision": 0.6458333333333334,
+          "recall": 0.7948717948717948,
+          "far": 0.937007874015748,
+          "frr": 0.20512820512820512,
+          "accept_rate": 0.84,
+          "mcc": -0.18047950429477932,
+          "abstain_rate": 0.1125,
+          "ci95": {
+            "accuracy": [
+              0.455,
+              0.66
+            ],
+            "far": [
+              0.8814814814814815,
+              0.9793103448275862
+            ],
+            "frr": [
+              0.1111111111111111,
+              0.3238434163701068
+            ],
+            "mcc": [
+              -0.3016407442265287,
+              -0.05461607846041573
+            ]
+          }
+        },
+        "abstain_excluded": {
+          "tp": 217,
+          "fp": 119,
+          "tn": 3,
+          "fn": 16,
+          "abstain": 45,
+          "n": 355,
+          "accuracy": 0.6197183098591549,
+          "precision": 0.6458333333333334,
+          "recall": 0.9313304721030042,
+          "far": 0.9754098360655737,
+          "frr": 0.06866952789699571,
+          "accept_rate": 0.9464788732394366,
+          "mcc": -0.09301366475079206,
+          "abstain_rate": 0.1125
+        },
+        "per_seed": {
+          "0": {
+            "tp": 217,
+            "fp": 119,
+            "tn": 8,
+            "fn": 56,
+            "abstain": 45,
+            "n": 400,
+            "accuracy": 0.5625,
+            "precision": 0.6458333333333334,
+            "recall": 0.7948717948717948,
+            "far": 0.937007874015748,
+            "frr": 0.20512820512820512,
+            "accept_rate": 0.84,
+            "mcc": -0.18047950429477932,
+            "abstain_rate": 0.1125
+          }
+        },
+        "seed_spread": {
+          "accuracy": {
+            "mean": 0.5625,
+            "sd": 0.0
+          },
+          "far": {
+            "mean": 0.937007874015748,
+            "sd": 0.0
+          },
+          "frr": {
+            "mean": 0.20512820512820512,
+            "sd": 0.0
+          },
+          "mcc": {
+            "mean": -0.18047950429477932,
+            "sd": 0.0
+          }
+        },
+        "far_by_failure_category": {
+          "error": {
+            "n": 17,
+            "accepted": 16,
+            "far": 0.9411764705882353
+          },
+          "slow": {
+            "n": 3,
+            "accepted": 3,
+            "far": 1.0
+          },
+          "timeout": {
+            "n": 6,
+            "accepted": 6,
+            "far": 1.0
+          },
+          "wrong_output": {
+            "n": 101,
+            "accepted": 94,
+            "far": 0.9306930693069307
+          }
+        },
+        "far_by_response_code_parses": {
+          "True": {
+            "n": 127,
+            "accepted": 119,
+            "far": 0.937007874015748
+          }
+        },
+        "by_temperature": {
+          "0.2": {
+            "tp": 112,
+            "fp": 58,
+            "tn": 1,
+            "fn": 29,
+            "abstain": 19,
+            "n": 200,
+            "accuracy": 0.565,
+            "precision": 0.6588235294117647,
+            "recall": 0.7943262411347518,
+            "far": 0.9830508474576272,
+            "frr": 0.20567375886524822,
+            "accept_rate": 0.85,
+            "mcc": -0.24103438528066953,
+            "abstain_rate": 0.095
+          },
+          "0.8": {
+            "tp": 105,
+            "fp": 61,
+            "tn": 7,
+            "fn": 27,
+            "abstain": 26,
+            "n": 200,
+            "accuracy": 0.56,
+            "precision": 0.6325301204819277,
+            "recall": 0.7954545454545454,
+            "far": 0.8970588235294118,
+            "frr": 0.20454545454545456,
+            "accept_rate": 0.83,
+            "mcc": -0.12813268116974988,
+            "abstain_rate": 0.13
+          }
+        },
+        "cost": {
+          "calls": 400,
+          "mean_input_tokens": 454.39,
+          "mean_output_tokens": 403.2325,
+          "mean_latency_s": 32.70931967,
+          "truncated_calls": 15
+        }
+      }
+    },
+    "v2": {
+      "direct": {
+        "seeds_complete": [
+          0
+        ],
+        "seeds_partial": {},
+        "single_call": {
+          "tp": 273,
+          "fp": 127,
+          "tn": 0,
+          "fn": 0,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6825,
+          "precision": 0.6825,
+          "recall": 1.0,
+          "far": 1.0,
+          "frr": 0.0,
+          "accept_rate": 1.0,
+          "mcc": 0.0,
+          "abstain_rate": 0.0,
+          "ci95": {
+            "accuracy": [
+              0.56,
+              0.7925
+            ],
+            "far": [
+              1.0,
+              1.0
+            ],
+            "frr": [
+              0.0,
+              0.0
+            ],
+            "mcc": [
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "abstain_excluded": {
+          "tp": 273,
+          "fp": 127,
+          "tn": 0,
+          "fn": 0,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6825,
+          "precision": 0.6825,
+          "recall": 1.0,
+          "far": 1.0,
+          "frr": 0.0,
+          "accept_rate": 1.0,
+          "mcc": 0.0,
+          "abstain_rate": 0.0
+        },
+        "per_seed": {
+          "0": {
+            "tp": 273,
+            "fp": 127,
+            "tn": 0,
+            "fn": 0,
+            "abstain": 0,
+            "n": 400,
+            "accuracy": 0.6825,
+            "precision": 0.6825,
+            "recall": 1.0,
+            "far": 1.0,
+            "frr": 0.0,
+            "accept_rate": 1.0,
+            "mcc": 0.0,
+            "abstain_rate": 0.0
+          }
+        },
+        "seed_spread": {
+          "accuracy": {
+            "mean": 0.6825,
+            "sd": 0.0
+          },
+          "far": {
+            "mean": 1.0,
+            "sd": 0.0
+          },
+          "frr": {
+            "mean": 0.0,
+            "sd": 0.0
+          },
+          "mcc": {
+            "mean": 0.0,
+            "sd": 0.0
+          }
+        },
+        "far_by_failure_category": {
+          "error": {
+            "n": 17,
+            "accepted": 17,
+            "far": 1.0
+          },
+          "slow": {
+            "n": 3,
+            "accepted": 3,
+            "far": 1.0
+          },
+          "timeout": {
+            "n": 6,
+            "accepted": 6,
+            "far": 1.0
+          },
+          "wrong_output": {
+            "n": 101,
+            "accepted": 101,
+            "far": 1.0
+          }
+        },
+        "far_by_response_code_parses": {
+          "True": {
+            "n": 127,
+            "accepted": 127,
+            "far": 1.0
+          }
+        },
+        "by_temperature": {
+          "0.2": {
+            "tp": 141,
+            "fp": 59,
+            "tn": 0,
+            "fn": 0,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.705,
+            "precision": 0.705,
+            "recall": 1.0,
+            "far": 1.0,
+            "frr": 0.0,
+            "accept_rate": 1.0,
+            "mcc": 0.0,
+            "abstain_rate": 0.0
+          },
+          "0.8": {
+            "tp": 132,
+            "fp": 68,
+            "tn": 0,
+            "fn": 0,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.66,
+            "precision": 0.66,
+            "recall": 1.0,
+            "far": 1.0,
+            "frr": 0.0,
+            "accept_rate": 1.0,
+            "mcc": 0.0,
+            "abstain_rate": 0.0
+          }
+        },
+        "cost": {
+          "calls": 400,
+          "mean_input_tokens": 429.39,
+          "mean_output_tokens": 7,
+          "mean_latency_s": 6.6615287775,
+          "truncated_calls": 0
+        }
+      },
+      "direct-swapped": {
+        "seeds_complete": [
+          0
+        ],
+        "seeds_partial": {},
+        "single_call": {
+          "tp": 255,
+          "fp": 127,
+          "tn": 0,
+          "fn": 18,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6375,
+          "precision": 0.6675392670157068,
+          "recall": 0.9340659340659341,
+          "far": 1.0,
+          "frr": 0.06593406593406594,
+          "accept_rate": 0.955,
+          "mcc": -0.14805569184963568,
+          "abstain_rate": 0.0,
+          "ci95": {
+            "accuracy": [
+              0.5225,
+              0.7525
+            ],
+            "far": [
+              1.0,
+              1.0
+            ],
+            "frr": [
+              0.003703703703703704,
+              0.15748031496062992
+            ],
+            "mcc": [
+              -0.23983131054776297,
+              -0.03473788285094702
+            ]
+          }
+        },
+        "abstain_excluded": {
+          "tp": 255,
+          "fp": 127,
+          "tn": 0,
+          "fn": 18,
+          "abstain": 0,
+          "n": 400,
+          "accuracy": 0.6375,
+          "precision": 0.6675392670157068,
+          "recall": 0.9340659340659341,
+          "far": 1.0,
+          "frr": 0.06593406593406594,
+          "accept_rate": 0.955,
+          "mcc": -0.14805569184963568,
+          "abstain_rate": 0.0
+        },
+        "per_seed": {
+          "0": {
+            "tp": 255,
+            "fp": 127,
+            "tn": 0,
+            "fn": 18,
+            "abstain": 0,
+            "n": 400,
+            "accuracy": 0.6375,
+            "precision": 0.6675392670157068,
+            "recall": 0.9340659340659341,
+            "far": 1.0,
+            "frr": 0.06593406593406594,
+            "accept_rate": 0.955,
+            "mcc": -0.14805569184963568,
+            "abstain_rate": 0.0
+          }
+        },
+        "seed_spread": {
+          "accuracy": {
+            "mean": 0.6375,
+            "sd": 0.0
+          },
+          "far": {
+            "mean": 1.0,
+            "sd": 0.0
+          },
+          "frr": {
+            "mean": 0.06593406593406594,
+            "sd": 0.0
+          },
+          "mcc": {
+            "mean": -0.14805569184963568,
+            "sd": 0.0
+          }
+        },
+        "far_by_failure_category": {
+          "error": {
+            "n": 17,
+            "accepted": 17,
+            "far": 1.0
+          },
+          "slow": {
+            "n": 3,
+            "accepted": 3,
+            "far": 1.0
+          },
+          "timeout": {
+            "n": 6,
+            "accepted": 6,
+            "far": 1.0
+          },
+          "wrong_output": {
+            "n": 101,
+            "accepted": 101,
+            "far": 1.0
+          }
+        },
+        "far_by_response_code_parses": {
+          "True": {
+            "n": 127,
+            "accepted": 127,
+            "far": 1.0
+          }
+        },
+        "by_temperature": {
+          "0.2": {
+            "tp": 134,
+            "fp": 59,
+            "tn": 0,
+            "fn": 7,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.67,
+            "precision": 0.694300518134715,
+            "recall": 0.950354609929078,
+            "far": 1.0,
+            "frr": 0.04964539007092199,
+            "accept_rate": 0.965,
+            "mcc": -0.12319322230415444,
+            "abstain_rate": 0.0
+          },
+          "0.8": {
+            "tp": 121,
+            "fp": 68,
+            "tn": 0,
+            "fn": 11,
+            "abstain": 0,
+            "n": 200,
+            "accuracy": 0.605,
+            "precision": 0.6402116402116402,
+            "recall": 0.9166666666666666,
+            "far": 1.0,
+            "frr": 0.08333333333333333,
+            "accept_rate": 0.945,
+            "mcc": -0.17315416054977323,
+            "abstain_rate": 0.0
+          }
+        },
+        "cost": {
+          "calls": 400,
+          "mean_input_tokens": 429.39,
+          "mean_output_tokens": 6.995,
+          "mean_latency_s": 7.175725675,
+          "truncated_calls": 0
+        }
+      },
+      "reason": {
+        "seeds_complete": [
+          0
+        ],
+        "seeds_partial": {},
+        "single_call": {
+          "tp": 223,
+          "fp": 121,
+          "tn": 6,
+          "fn": 50,
+          "abstain": 37,
+          "n": 400,
+          "accuracy": 0.5725,
+          "precision": 0.6482558139534884,
+          "recall": 0.8168498168498168,
+          "far": 0.952755905511811,
+          "frr": 0.18315018315018314,
+          "accept_rate": 0.86,
+          "mcc": -0.1823261086427878,
+          "abstain_rate": 0.0925,
+          "ci95": {
+            "accuracy": [
+              0.46,
+              0.6725
+            ],
+            "far": [
+              0.9019607843137255,
+              0.9882352941176471
+            ],
+            "frr": [
+              0.09274193548387097,
+              0.30564784053156147
+            ],
+            "mcc": [
+              -0.29954734847712083,
+              -0.05496181995055934
+            ]
+          }
+        },
+        "abstain_excluded": {
+          "tp": 223,
+          "fp": 121,
+          "tn": 3,
+          "fn": 16,
+          "abstain": 37,
+          "n": 363,
+          "accuracy": 0.6225895316804407,
+          "precision": 0.6482558139534884,
+          "recall": 0.9330543933054394,
+          "far": 0.9758064516129032,
+          "frr": 0.06694560669456066,
+          "accept_rate": 0.9476584022038568,
+          "mcc": -0.09103550381722804,
+          "abstain_rate": 0.0925
+        },
+        "per_seed": {
+          "0": {
+            "tp": 223,
+            "fp": 121,
+            "tn": 6,
+            "fn": 50,
+            "abstain": 37,
+            "n": 400,
+            "accuracy": 0.5725,
+            "precision": 0.6482558139534884,
+            "recall": 0.8168498168498168,
+            "far": 0.952755905511811,
+            "frr": 0.18315018315018314,
+            "accept_rate": 0.86,
+            "mcc": -0.1823261086427878,
+            "abstain_rate": 0.0925
+          }
+        },
+        "seed_spread": {
+          "accuracy": {
+            "mean": 0.5725,
+            "sd": 0.0
+          },
+          "far": {
+            "mean": 0.952755905511811,
+            "sd": 0.0
+          },
+          "frr": {
+            "mean": 0.18315018315018314,
+            "sd": 0.0
+          },
+          "mcc": {
+            "mean": -0.1823261086427878,
+            "sd": 0.0
+          }
+        },
+        "far_by_failure_category": {
+          "error": {
+            "n": 17,
+            "accepted": 16,
+            "far": 0.9411764705882353
+          },
+          "slow": {
+            "n": 3,
+            "accepted": 3,
+            "far": 1.0
+          },
+          "timeout": {
+            "n": 6,
+            "accepted": 6,
+            "far": 1.0
+          },
+          "wrong_output": {
+            "n": 101,
+            "accepted": 96,
+            "far": 0.9504950495049505
+          }
+        },
+        "far_by_response_code_parses": {
+          "True": {
+            "n": 127,
+            "accepted": 121,
+            "far": 0.952755905511811
+          }
+        },
+        "by_temperature": {
+          "0.2": {
+            "tp": 117,
+            "fp": 58,
+            "tn": 1,
+            "fn": 24,
+            "abstain": 14,
+            "n": 200,
+            "accuracy": 0.59,
+            "precision": 0.6685714285714286,
+            "recall": 0.8297872340425532,
+            "far": 0.9830508474576272,
+            "frr": 0.1702127659574468,
+            "accept_rate": 0.875,
+            "mcc": -0.21134189340860896,
+            "abstain_rate": 0.07
+          },
+          "0.8": {
+            "tp": 106,
+            "fp": 63,
+            "tn": 5,
+            "fn": 26,
+            "abstain": 23,
+            "n": 200,
+            "accuracy": 0.555,
+            "precision": 0.6272189349112426,
+            "recall": 0.803030303030303,
+            "far": 0.9264705882352942,
+            "frr": 0.19696969696969696,
+            "accept_rate": 0.845,
+            "mcc": -0.16157499055675884,
+            "abstain_rate": 0.115
+          }
+        },
+        "cost": {
+          "calls": 400,
+          "mean_input_tokens": 454.39,
+          "mean_output_tokens": 403.2325,
+          "mean_latency_s": 32.70931967,
+          "truncated_calls": 15
+        }
+      }
+    }
+  },
+  "n_boot": 2000
+}
