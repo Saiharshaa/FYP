@@ -25,7 +25,7 @@ from pathlib import Path
 from verifier.config import load_config
 from verifier.harness.client import ModelClient, MockClient, make_client
 from verifier.harness.runlog import RunLog, Task, execute
-from verifier.strategies import STRATEGIES, Strategy
+from verifier.strategies import PER_PROBLEM, STRATEGIES, Strategy
 
 
 def load_corpus(results: str | Path, corpus_run: str) -> tuple[list[dict], dict]:
@@ -42,6 +42,13 @@ def load_corpus(results: str | Path, corpus_run: str) -> tuple[list[dict], dict]
 
 def verification_tasks(rows: list[dict], problems: dict[str, dict],
                        strategy: Strategy, seeds: list[int]) -> list[Task]:
+    if getattr(strategy, "per_problem", False):
+        # (c)/(d): one call per (problem, seed) from the spec alone; the output
+        # is applied to every candidate of that problem by exec_verdicts.
+        pids = sorted({r["problem_id"] for r in rows})
+        return [Task(problem_id=p, candidate_id=PER_PROBLEM, strategy=strategy.name,
+                     seed=s, prompt=strategy.build_prompt(problems[p]))
+                for s in seeds for p in pids]
     return [Task(problem_id=r["problem_id"], candidate_id=r["candidate_id"],
                  strategy=strategy.name, seed=s,
                  prompt=strategy.build_prompt(problems[r["problem_id"]], r["solution"]))

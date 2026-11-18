@@ -26,7 +26,18 @@ from verifier.analysis.metrics import (
     Item, majority_vote, score, score_with_ci, seed_spread)
 from verifier.harness.runlog import RunLog
 from verifier.harness.verify import load_corpus
-from verifier.strategies import PARSERS, parse_verdict, parse_verdict_v2
+from verifier.strategies import (
+    EXEC_STRATEGIES, PARSERS, PER_PROBLEM, parse_verdict, parse_verdict_v2)
+from types import SimpleNamespace
+
+
+def _exec_summary(recs: list) -> dict:
+    """How often the model's tests / reference were usable at all."""
+    n = len(recs)
+    none = [r for r in recs if r.verdict is None]
+    errs = Counter((r.details or {}).get("error", "") for r in recs if (r.details or {}).get("error"))
+    return {"executions": n, "no_verdict": len(none),
+            "no_verdict_rate": len(none) / n if n else None, "errors": dict(errs)}
 
 
 def _items(rows: list[dict], verdicts: dict[tuple, bool | None]) -> list[Item]:
@@ -58,8 +69,34 @@ def corpus_summary(rows: list[dict], meta: dict) -> dict:
     }
 
 
+def exec_records(rows: list[dict], recs: list, results: str | Path, run_id: str) -> list:
+    """Per-candidate records for an execution strategy ((c)/(d)): verdicts from
+    exec.jsonl; the per-problem model call's tokens and latency are split evenly
+    over that problem's candidates (cost per verified candidate)."""
+    from verifier.harness.exec_verdicts import load_exec
+
+    ex = load_exec(results, run_id)
+    n_cands = Counter(r["problem_id"] for r in rows)
+    calls = {(r.problem_id, r.seed): r for r in recs if r.candidate_id == PER_PROBLEM}
+    out = []
+    for (pid, cid, strat, seed), e in ex.items():
+        call = calls.get((pid, seed))
+        if call is None or call.strategy != strat:
+            continue
+        k = n_cands[pid] or 1
+        out.append(SimpleNamespace(
+            problem_id=pid, candidate_id=cid, seed=seed, strategy=strat,
+            response=None, verdict=e["verdict"], details=e.get("details", {}),
+            input_tokens=call.input_tokens / k, output_tokens=call.output_tokens / k,
+            latency_s=call.latency_s / k, finish_reason=call.finish_reason))
+    return out
+
+
 def strategy_report(rows: list[dict], recs: list, n_boot: int,
-                    parse: Callable[[str], bool | None] = parse_verdict) -> dict:
+                    parse: Callable[[str], bool | None] = parse_verdict,
+                    from_record: bool = False) -> dict:
+    """from_record=True takes each record's stored verdict (execution
+    strategies) instead of re-parsing its response."""
     by_seed: dict[int, dict[tuple, object]] = defaultdict(dict)
     for r in recs:
         by_seed[r.seed][(r.problem_id, r.candidate_id)] = r
@@ -72,7 +109,9 @@ def strategy_report(rows: list[dict], recs: list, n_boot: int,
 
     # Verdicts are re-derived from the logged raw responses with `parse`, so a
     # parser revision never needs the model to be re-run.
-    verdict = {s: {k: parse(by_seed[s][k].response) for k in keys} for s in complete}
+    verdict = {s: {k: (by_seed[s][k].verdict if from_record
+                       else parse(by_seed[s][k].response)) for k in keys}
+               for s in complete}
     per_seed = {s: _items(rows, verdict[s]) for s in complete}
     pooled = [i for s in complete for i in per_seed[s]]
     out["single_call"] = score_with_ci(pooled, n_boot)
@@ -114,6 +153,13 @@ def build_report(results: str | Path, run_id: str, n_boot: int = 2000) -> dict:
     recs = defaultdict(list)
     for r in RunLog(run_id, results).records():
         recs[r.strategy].append(r)
+    # (c)/(d): verdicts come from running code (exec.jsonl), not from parsing.
+    exec_recs = {s: exec_records(rows, v, results, run_id)
+                 for s, v in recs.items() if s in EXEC_STRATEGIES}
+    exec_reports = {s: strategy_report(rows, v, n_boot, from_record=True)
+                    for s, v in sorted(exec_recs.items())}
+    for s in exec_recs:
+        recs.pop(s)
     all_recs = [r for v in recs.values() for r in v]
     # v1 is the run-time parser: re-parsing must reproduce the logged verdicts.
     v1_mismatch = sum(parse_verdict(r.response) != r.verdict for r in all_recs)
@@ -134,9 +180,10 @@ def build_report(results: str | Path, run_id: str, n_boot: int = 2000) -> dict:
             "v2_changed_calls": {s: sum(parse_verdict(r.response) != parse_verdict_v2(r.response)
                                         for r in v) for s, v in sorted(recs.items())},
         },
-        "strategies": {p: {s: strategy_report(rows, v, n_boot, fn)
-                           for s, v in sorted(recs.items())}
+        "strategies": {p: {**{s: strategy_report(rows, v, n_boot, fn)
+                              for s, v in sorted(recs.items())}, **exec_reports}
                        for p, fn in PARSERS.items()},
+        "execution": {s: _exec_summary(v) for s, v in sorted(exec_recs.items())},
         "n_boot": n_boot,
     }
 
@@ -200,6 +247,12 @@ def to_markdown(rep: dict) -> str:
     L += ["", f"Parser check: {pc['calls']} logged calls; re-parsing with v1 reproduces the "
           f"logged verdict for all but {pc['v1_reparse_mismatches']}; v2 changes "
           + ", ".join(f"{n}: {k}" for n, k in changed.items()) + " calls."]
+    for name, e in rep.get("execution", {}).items():
+        L.append(f"Execution strategy `{name}`: verdicts from running code (exec.jsonl); "
+                 f"{e['executions']} candidate executions, {_p(e['no_verdict_rate'])} with no "
+                 f"verdict (unusable tests/reference); errors {e['errors'] or '{}'}. "
+                 "Tokens and latency are per candidate (one model call per problem and seed, "
+                 "split over its candidates).")
 
     for parser, name in sorted(shown, key=lambda pn: (pn[1], pn[0])):
         s = rep["strategies"][parser][name]
