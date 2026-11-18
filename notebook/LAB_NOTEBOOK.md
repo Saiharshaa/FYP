@@ -558,3 +558,56 @@ before any pilot output was seen):
 - (c)/(d) pilot running (`scripts/run_pilot_exec.sh`, 240 per-problem calls
   at about 55 s each with the local 1.5B, then sandboxed execution). Results
   to follow.
+
+## 2026-11-19: (c)/(d) pilot result, first evidence for H2
+
+`scripts/run_pilot_exec.sh` finished 23:59: 240 per-problem calls (1.5B,
+self-verification, seeds 0–2) and 2,560 sandboxed executions. Report:
+`reports/pilot-q15b/report.md`. Base rate 68.2%.
+
+| Strategy | Accuracy | FAR | FRR | MCC | No verdict |
+|---|---|---|---|---|---|
+| always accept | 68.2% | 100% | 0% | 0 | – |
+| (b) reason, single call, v1 | 60.2% | 87.4% | 17.6% | −0.063 | 12.4% |
+| (c) self-tests, single call, v1 | 42.7% | 6.0% | 81.2% | 0.168 [−0.009, 0.304] | 15.8% |
+| (c) self-tests, v2 extractor | 44.4% | 8.9% | 77.3% | 0.166 [−0.006, 0.314] | 2.5% |
+| (d) reference, single call | 55.8% | 18.6% | 56.2% | **0.245 [0.147, 0.347]** | 46.7% |
+| (d) reference, 3-seed vote | 58.0% | 6.3% | 58.6% | **0.356 [0.207, 0.503]** | – |
+
+With no-verdict calls excluded: (d) accuracy 74.4%, FAR 37.8%, FRR 20.6%,
+MCC 0.404 (560 of 1,200 dropped); (c) v1 45.2%, FAR 7.1%, FRR 77.5%,
+MCC 0.190.
+
+**Reading.**
+- **Executing code flips the error profile.** Judgement-only strategies
+  accept 87–100% of incorrect code. Execution-grounded strategies accept
+  6–19%, and (d) is the first strategy whose MCC CI excludes 0. This is the
+  direction H2 predicts.
+- **The cost of that shift is false rejects.** Most of them come from the
+  verifier's own mistakes:
+  - (c): wrong expected values in model-written asserts reject 77–81% of
+    correct code.
+  - (d): 46.7% of executions have no usable reference. 200 of these are
+    `no_reference`, matching the 20/120 calls truncated at the 1,536-token
+    cap. 100 are `NameError` and 70 `TypeError`; NameError is likely
+    `List`/`Tuple` annotations without `from typing import ...`, to check.
+  - No verdict counts as reject, so these failures land in FRR.
+- **Not yet better than always-accept on accuracy** (base rate 68%). On
+  usable outputs, (d) reaches 74.4%.
+- **RQ4 selection is still about 0** ((d) +0.05 to +0.07, CIs from −0.3 to
+  +0.3). With a high FRR, many problems have no accepted candidate and fall
+  back to random.
+- **Cost per candidate is lower than (b).** The model writes once per
+  problem: 48–63 output tokens per candidate versus 385 for reason, plus
+  about 0.2–1 s of sandbox time per candidate.
+
+**Candidate follow-ups (not done; decisions for the user):**
+1. Reference/test runner v2: pre-import `typing` names (HumanEval
+   signatures use `List`). Post hoc, reported alongside v1 like the other
+   v2s.
+2. Raise `reference` `max_tokens` (1,536 truncated 17% of calls), only for
+   the GPU sweep, where 7B/8B models are less verbose. Decide before
+   running.
+3. A score-based variant for RQ4: rank candidates by the fraction of tests
+   passed or inputs agreed, instead of binary accept, so problems with no
+   full pass are not random.
