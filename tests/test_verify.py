@@ -58,7 +58,8 @@ def test_parser_v2_adds_boxed_only(text, v1, v2):
 
 
 def test_strategies_registered():
-    assert set(STRATEGIES) == {"direct", "direct-swapped", "reason"}
+    assert set(STRATEGIES) == {"direct", "direct-swapped", "reason",
+                               "self-tests", "reference"}
     assert DIRECT.max_tokens < REASON.max_tokens == 768
     assert len({DIRECT.template_sha256, DIRECT_SWAPPED.template_sha256,
                 REASON.template_sha256}) == 3
