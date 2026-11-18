@@ -433,6 +433,31 @@ regenerated (`reports/pilot-q15b/report.md`). 400 candidates, base rate
   verification on ASPIRE 2A (`scripts/aspire/`). The 7B model is still to be
   chosen. Keep both parsers and the no-verdict rate in every table.
 
+**GPU throughput: concurrent requests (2026-11-18).**
+- `runlog.execute` was serial, which would leave a vLLM server mostly idle.
+- It now takes `concurrency` (default 1, so the pilot's behaviour is
+  unchanged). Requests run in a thread pool, but only the main thread writes
+  the log, so resume, single-writer and no-duplicate guarantees hold. New
+  tests cover equality with serial runs, real overlap, and a failure in the
+  middle followed by a resume.
+- `configs/aspire_a100.toml` sets 32 for generation and verification
+  (proposal), and `scripts/aspire/env.sh` selects it.
+- Trade-off to decide: with batching, per-request seeds are still sent, but
+  vLLM does not guarantee bit-identical replay. Seeds then index independent
+  samples rather than exact replays. The pilot (llama.cpp, `--parallel 1`)
+  was exactly replayable.
+
+**Rough GPU budget for the full sweep (estimate, not measured).**
+- Calls: 163 problems × 10 candidates = 1,630.
+  - Generation: about 1,630 calls × ~300 output tokens ≈ 0.5M tokens.
+  - Verification per verifier model: direct + swapped + reason × 3 seeds =
+    8,150 calls, ≈ 2–2.5M output tokens.
+- Assuming a 7B model in bf16 on one A100 gives 1,000–2,500 tok/s across 32
+  concurrent requests, that is under an hour of generation per model pair,
+  plus model load. Even 5 model pairs with retries stay around 10–20
+  GPU-hours, about 1–2% of the 100k-SU personal quota (64 SU/GPU-h). Measure
+  real tok/s in the first `infer.pbs` job and update this.
+
 **Compute: ASPIRE 2A (NSCC) instead of, or alongside, TC1.**
 - NSCC account `saiharsh` has the personal project `personal-saiharsh`
   (100k SU ≈ 1,560 A100-40GB GPU-hours at 64 SU/GPU-h).

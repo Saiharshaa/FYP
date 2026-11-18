@@ -4,6 +4,7 @@
 export FYP_PROJECT=${FYP_PROJECT:-personal-saiharsh}
 export FYP_ENV=${FYP_ENV:-$HOME/envs/fyp-vllm}          # conda env (python 3.11 + vllm + this package)
 export VLLM_VERSION=${VLLM_VERSION:-0.8.5}
+export VERIFIER_CONFIG=${VERIFIER_CONFIG:-configs/aspire_a100.toml}   # concurrency for vLLM
 # Big files (model weights) go to scratch, not the 50 GB home quota.
 # Smoke test prints the real scratch path; override SCRATCH_DIR if it differs.
 if [ -z "${SCRATCH_DIR:-}" ]; then

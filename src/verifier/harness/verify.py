@@ -77,12 +77,14 @@ def _record_meta(log: RunLog, corpus_run: str, corpus_meta: dict, client: ModelC
 
 def verify(log: RunLog, client: ModelClient, rows: list[dict], problems: dict[str, dict],
            strategy: Strategy, seeds: list[int], temperature: float,
-           corpus_run: str = "", corpus_meta: dict | None = None) -> int:
+           corpus_run: str = "", corpus_meta: dict | None = None,
+           concurrency: int = 1) -> int:
     """Run `strategy` on every corpus row for each seed; returns calls made."""
     _record_meta(log, corpus_run, corpus_meta or {}, client, strategy, seeds, temperature)
     tasks = verification_tasks(rows, problems, strategy, seeds)
     return execute(log, tasks, client, temperature=temperature,
-                   max_tokens=strategy.max_tokens, parse_verdict=strategy.parse_verdict)
+                   max_tokens=strategy.max_tokens, parse_verdict=strategy.parse_verdict,
+                   concurrency=concurrency)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -106,7 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     log = RunLog(args.run_id, args.results)
     made = verify(log, client, rows, problems, STRATEGIES[args.strategy],
                   args.seeds or vcfg["seeds"], vcfg["temperature"],
-                  corpus_run=args.corpus, corpus_meta=corpus_meta)
+                  corpus_run=args.corpus, corpus_meta=corpus_meta,
+                  concurrency=vcfg.get("concurrency", 1))
     print(f"{made} model calls; log at {log.path}")
     return 0
 

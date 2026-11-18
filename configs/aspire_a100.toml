@@ -1,0 +1,14 @@
+# GPU inference on NSCC ASPIRE 2A: one A100-40GB, vLLM inside a PBS job
+# (scripts/aspire/infer.pbs sets VERIFIER_BASE_URL / VERIFIER_MODEL).
+#   export VERIFIER_CONFIG=configs/aspire_a100.toml   (scripts/aspire/env.sh does this)
+extends = "default.toml"
+
+# vLLM batches concurrent requests; serial calls would leave the GPU mostly
+# idle. Per-request seeds are still sent, but batched outputs are not
+# guaranteed bit-identical on replay (see runlog.execute). Proposal, not yet
+# a decision: 32 in flight.
+[generation]
+concurrency = 32
+
+[verification]
+concurrency = 32

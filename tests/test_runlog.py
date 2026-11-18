@@ -96,3 +96,67 @@ def test_audit_reports_duplicates(tmp_path):
 def test_rejects_unsafe_run_id(tmp_path):
     with pytest.raises(ValueError):
         RunLog("../escape", tmp_path)
+
+
+def _by_key(log: RunLog) -> dict:
+    out = {}
+    for line in lines(log):
+        r = json.loads(line)
+        out[(r["problem_id"], r["candidate_id"], r["strategy"], r["seed"])] = (
+            r["response"], r["verdict"], r["output_tokens"])
+    return out
+
+
+def test_concurrent_execute_matches_serial(tmp_path):
+    tasks = _mock_run.tasks()
+    serial, conc = RunLog("ser", tmp_path), RunLog("con", tmp_path)
+    verdict = lambda s: s.endswith("0")
+    assert execute(serial, tasks, MockClient(), temperature=0, max_tokens=16,
+                   parse_verdict=verdict) == len(tasks)
+    assert execute(conc, tasks, MockClient(), temperature=0, max_tokens=16,
+                   parse_verdict=verdict, concurrency=8) == len(tasks)
+    assert _by_key(conc) == _by_key(serial)
+    assert audit(conc, tasks) == {"duplicates": [], "missing": [], "unexpected": []}
+    assert execute(conc, tasks, MockClient(), temperature=0, max_tokens=16,
+                   concurrency=8) == 0
+
+
+def test_concurrent_execute_overlaps_calls(tmp_path):
+    tasks = _mock_run.tasks()[:16]
+
+    def slow(prompt, seed):
+        time.sleep(0.2)
+        return "ok"
+
+    t0 = time.perf_counter()
+    execute(RunLog("fast", tmp_path), tasks, MockClient(slow), temperature=0,
+            max_tokens=16, concurrency=8)
+    assert time.perf_counter() - t0 < 16 * 0.2 / 2      # serial would take 3.2 s
+
+
+def test_concurrent_failure_keeps_finished_calls_and_resumes(tmp_path):
+    tasks = _mock_run.tasks()
+    bad = tasks[20].prompt
+
+    def flaky(prompt, seed):
+        if prompt == bad and seed == tasks[20].seed:
+            raise RuntimeError("server died")
+        time.sleep(0.01)
+        return "ok"
+
+    log = RunLog("flaky", tmp_path)
+    with pytest.raises(RuntimeError):
+        execute(log, tasks, MockClient(flaky), temperature=0, max_tokens=16,
+                concurrency=4)
+    done = audit(log, tasks)
+    assert done["duplicates"] == [] and tasks[20].key in done["missing"]
+    assert 0 < len(lines(log)) < len(tasks)
+    rest = execute(log, tasks, MockClient(), temperature=0, max_tokens=16, concurrency=4)
+    assert rest == len(tasks) - (len(tasks) - len(done["missing"]))
+    assert audit(log, tasks) == {"duplicates": [], "missing": [], "unexpected": []}
+
+
+def test_concurrency_must_be_positive(tmp_path):
+    with pytest.raises(ValueError):
+        execute(RunLog("zero", tmp_path), _mock_run.tasks()[:1], MockClient(),
+                temperature=0, max_tokens=16, concurrency=0)

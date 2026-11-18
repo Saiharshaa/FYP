@@ -87,7 +87,8 @@ def generate(log: RunLog, client: ModelClient, problems: dict[str, dict],
     for temperature in gen_cfg["temperatures"]:
         tasks = generation_tasks(problems, temperature, gen_cfg["samples_per_temperature"])
         made += execute(log, tasks, client, temperature=temperature,
-                        max_tokens=gen_cfg["max_tokens"])
+                        max_tokens=gen_cfg["max_tokens"],
+                        concurrency=gen_cfg.get("concurrency", 1))
     return made
 
 

@@ -20,7 +20,9 @@ import json
 import os
 import re
 from collections import Counter
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass
+from itertools import islice
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
@@ -123,12 +125,26 @@ def pending(tasks: Iterable[Task], done: set[Key]) -> list[Task]:
 
 def execute(log: RunLog, tasks: Iterable[Task], client: ModelClient, *,
             temperature: float, max_tokens: int,
-            parse_verdict: Callable[[str], bool | None] | None = None) -> int:
-    """Run every not-yet-logged task through the client; returns calls made."""
+            parse_verdict: Callable[[str], bool | None] | None = None,
+            concurrency: int = 1) -> int:
+    """Run every not-yet-logged task through the client; returns calls made.
+
+    concurrency > 1 keeps that many requests in flight (for batching servers
+    such as vLLM). Only this thread writes the log, so the single-writer and
+    resume guarantees are unchanged; log order then follows completion order,
+    which nothing downstream depends on (records are keyed). Per-request seeds
+    are still sent, but a batching server may not reproduce outputs bit-for-bit
+    across runs; keep concurrency = 1 where exact replay matters.
+    """
+    if concurrency < 1:
+        raise ValueError("concurrency must be >= 1")
     todo = pending(tasks, log.completed())
-    for t in todo:
-        g = client.generate(t.prompt, temperature=temperature, seed=t.seed,
-                            max_tokens=max_tokens)
+
+    def call(t: Task):
+        return client.generate(t.prompt, temperature=temperature, seed=t.seed,
+                               max_tokens=max_tokens)
+
+    def record(t: Task, g) -> None:
         log.append(LogRecord(
             run_id=log.run_id, problem_id=t.problem_id, candidate_id=t.candidate_id,
             strategy=t.strategy, seed=t.seed, prompt=t.prompt, response=g.text,
@@ -137,7 +153,30 @@ def execute(log: RunLog, tasks: Iterable[Task], client: ModelClient, *,
             latency_s=round(g.latency_s, 6), timestamp=_now(), model=g.model,
             temperature=temperature, max_tokens=max_tokens,
             finish_reason=g.finish_reason))
-    return len(todo)
+
+    if concurrency == 1:
+        for t in todo:
+            record(t, call(t))
+        return len(todo)
+
+    made = 0
+    it = iter(todo)
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        inflight = {ex.submit(call, t): t for t in islice(it, concurrency)}
+        try:
+            while inflight:
+                done, _ = wait(inflight, return_when=FIRST_COMPLETED)
+                for f in done:
+                    t = inflight.pop(f)
+                    record(t, f.result())       # a failed call raises here
+                    made += 1
+                    for nxt in islice(it, 1):   # refill one slot
+                        inflight[ex.submit(call, nxt)] = nxt
+        except BaseException:
+            for f in inflight:                  # stop queued work; finished
+                f.cancel()                      # calls are already logged
+            raise
+    return made
 
 
 def audit(log: RunLog, tasks: Iterable[Task]) -> dict[str, list[Key]]:
