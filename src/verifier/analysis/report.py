@@ -24,6 +24,7 @@ from typing import Callable
 
 from verifier.analysis.metrics import (
     Item, majority_vote, score, score_with_ci, seed_spread)
+from verifier.analysis.selection import selection
 from verifier.harness.runlog import RunLog
 from verifier.harness.verify import load_corpus
 from verifier.strategies import (
@@ -118,9 +119,16 @@ def strategy_report(rows: list[dict], recs: list, n_boot: int,
     out["abstain_excluded"] = score(pooled, abstain="exclude")
     out["per_seed"] = {s: score(v) for s, v in per_seed.items()}
     out["seed_spread"] = seed_spread(out["per_seed"])
+    # RQ4: use the verdicts to pick one candidate per problem.
+    sel_seeds = {s: selection(v, n_boot) for s, v in per_seed.items()}
+    out["selection"] = {"per_seed": sel_seeds, "seed_mean": {
+        m: statistics.mean(x[m] for x in sel_seeds.values() if x.get(m) is not None)
+        for m in ("random", "verifier", "oracle", "headroom_captured")
+        if any(x.get(m) is not None for x in sel_seeds.values())}}
     if len(complete) >= 2:
         votes = {k: majority_vote([verdict[s][k] for s in complete]) for k in keys}
         out["vote"] = {**score_with_ci(_items(rows, votes), n_boot), "n_seeds": len(complete)}
+        out["selection"]["vote"] = selection(_items(rows, votes), n_boot)
 
     row_of = {(r["problem_id"], r["candidate_id"]): r for r in rows}
     groups: dict[str, dict] = {"category": defaultdict(list), "parses": defaultdict(list),
@@ -194,6 +202,10 @@ def _p(x) -> str:
     return "–" if x is None else f"{100 * x:.1f}%"
 
 
+def _hc(x) -> str:
+    return "–" if x is None else f"{x:+.2f}"
+
+
 def _fmt(metric: str, x: float) -> str:
     return f"{x:.3f}" if metric == "mcc" else _p(x)
 
@@ -247,6 +259,30 @@ def to_markdown(rep: dict) -> str:
     L += ["", f"Parser check: {pc['calls']} logged calls; re-parsing with v1 reproduces the "
           f"logged verdict for all but {pc['v1_reparse_mismatches']}; v2 changes "
           + ", ".join(f"{n}: {k}" for n, k in changed.items()) + " calls."]
+    sel_rows = []
+    for parser, name in sorted(shown, key=lambda pn: (pn[1], pn[0])):
+        sel = rep["strategies"][parser][name].get("selection")
+        if not sel:
+            continue
+        sm = sel["seed_mean"]
+        if sm:
+            sel_rows.append(f"| {name} [{parser}] single call (mean over seeds) | "
+                            f"{_p(sm.get('random'))} | {_p(sm.get('verifier'))} | "
+                            f"{_p(sm.get('oracle'))} | {_hc(sm.get('headroom_captured'))} |")
+        v = sel.get("vote")
+        if v:
+            ci = v.get("ci95_headroom")
+            ci_s = f" [{_hc(ci[0])}, {_hc(ci[1])}]" if ci else ""
+            sel_rows.append(f"| {name} [{parser}] majority vote | {_p(v['random'])} | "
+                            f"{_p(v['verifier'])} | {_p(v['oracle'])} | "
+                            f"{_hc(v['headroom_captured'])}{ci_s} |")
+    if sel_rows:
+        L += ["", "## Selection (RQ4)", "",
+              "Pick one candidate per problem: random (expected), verifier (random among "
+              "accepted; random if none accepted), oracle (a correct one if any). Headroom "
+              "captured = (verifier − random) / (oracle − random): 0 = random, 1 = oracle.", "",
+              "| Strategy | Random | Verifier | Oracle | Headroom captured |",
+              "|---|---|---|---|---|", *sel_rows]
     for name, e in rep.get("execution", {}).items():
         L.append(f"Execution strategy `{name}`: verdicts from running code (exec.jsonl); "
                  f"{e['executions']} candidate executions, {_p(e['no_verdict_rate'])} with no "
