@@ -1,14 +1,14 @@
 #!/bin/bash
-# Model inference on one A100: serve the model with vLLM inside the job, then
-# run ONE pipeline stage against it. Stages only call the model (generate /
-# verify); labelling (code execution) stays in WSL2. Resumable: every stage
-# appends to results/<run>/log.jsonl, so resubmit the same command after a
-# walltime kill. From ~/FYP on the login node:
+# Model inference on one A100: serve one model with vLLM inside the job, then
+# run pipeline stages against it, in order. Stages only call the model
+# (generate / verify); labelling (code execution) stays in WSL2. Resumable:
+# every stage appends to results/<run>/log.jsonl, so resubmit the same command
+# after a walltime kill. Normally submitted by scripts/aspire/submit.sh; by hand:
 #
-#   qsub -v STAGE="verifier.corpus.build generate --run-id full-q7b --backend openai" scripts/aspire/infer.pbs
-#   qsub -v STAGE="verifier.harness.verify --corpus full-q7b --run-id verify-full-q7b --strategy reason --seeds 0 1 2" scripts/aspire/infer.pbs
+#   qsub -v MODEL_KEY=q7b,STAGE="verifier.corpus.build generate --run-id gen-q7b --backend openai" scripts/aspire/infer.pbs
 #
-# Optional: -v MODEL_ID=...,SERVED_NAME=...,MAX_MODEL_LEN=...
+# STAGE holds one or more "<module> <args>" separated by '|' (no commas: qsub
+# -v splits on them). Optional: MODEL_ID / SERVED_NAME / MAX_MODEL_LEN.
 #PBS -N fyp-infer
 #PBS -P personal-saiharsh
 #PBS -q normal
@@ -45,6 +45,13 @@ say "vllm ready"
 export VERIFIER_BASE_URL=http://127.0.0.1:$PORT/v1
 export VERIFIER_MODEL=$SERVED_NAME
 export VERIFIER_API_KEY=EMPTY
-say "run: python -m $STAGE"
-eval "python -m $STAGE"
-say "stage done"
+IFS='|' read -ra STAGES <<< "$STAGE"
+for s in "${STAGES[@]}"; do
+  s="${s#"${s%%[![:space:]]*}"}"                # trim leading space
+  [ -z "$s" ] && continue
+  say "run: python -m $s"
+  t0=$SECONDS
+  eval "python -m $s"
+  say "stage done in $((SECONDS - t0)) s"
+done
+say "all stages done"

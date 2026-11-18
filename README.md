@@ -76,22 +76,31 @@ attached, so long runs need an attached session or a keep-alive.
 
 ### GPU inference (NSCC ASPIRE 2A, PBS Pro)
 
-The GPU job serves the model with vLLM inside a PBS job on one A100-40GB, then
-runs one model-calling stage against it. Labelling never runs there.
+Each PBS job serves one model with vLLM on one A100-40GB (32 requests in
+flight, `configs/aspire_a100.toml`) and runs its model-calling stages.
+Labelling never runs there. Full sweep, a 2×2 self/cross design with
+Qwen2.5-Coder-7B (`q7b`) and Llama-3.1-8B (`l8b`) as generators and as
+verifiers:
 
 ```bash
-# WSL: push code (and, for verify, the labelled corpus)
+# WSL: push code
 bash scripts/aspire/sync.sh code
-bash scripts/aspire/sync.sh push-run <corpus-run>
-# ASPIRE login node, once: conda env + vllm, HumanEval+ cache, model weights
+# ASPIRE login node, once: conda env + vllm, HumanEval+ cache, both models
+# (Llama is gated: accept its licence on Hugging Face, `huggingface-cli login`)
 bash scripts/aspire/setup_env.sh
 qsub scripts/aspire/gpu_smoke.pbs
-# ASPIRE: one stage per job (24 h walltime); resubmit the same line to resume
-qsub -v STAGE="verifier.corpus.build generate --run-id R --backend openai" scripts/aspire/infer.pbs
-qsub -v STAGE="verifier.harness.verify --corpus R --run-id V --strategy reason --seeds 0 1 2" scripts/aspire/infer.pbs
-# WSL: fetch model outputs, then label/report locally
-bash scripts/aspire/sync.sh pull-run R
+# Phase A (ASPIRE): one generation job per model -> results/gen-<g>/
+bash scripts/aspire/submit.sh generate
+# WSL: pull, label (runs candidate code), push back
+bash scripts/aspire/label_corpora.sh
+# Phase B (ASPIRE): 4 jobs, corpus x verifier; direct, direct-swapped, reason x 3 seeds
+bash scripts/aspire/submit.sh verify
+# WSL: pull verify logs, then report locally
+bash scripts/aspire/sync.sh pull-run verify-gen-q7b-by-l8b   # etc.
 ```
+
+Every stage resumes from its log, so after a walltime kill, run the same
+submit line again. `DRY_RUN=1` prints the qsub commands instead of submitting.
 
 Access is via the NTU HPCC jumphost; see `notebook/LAB_NOTEBOOK.md`
 (2026-11-17).

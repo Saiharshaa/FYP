@@ -14,10 +14,21 @@ if [ -z "${SCRATCH_DIR:-}" ]; then
 fi
 export SCRATCH_DIR=${SCRATCH_DIR:-$HOME/scratch}
 export HF_HOME=$SCRATCH_DIR/hf
-# Model under test (proposal, not yet decided): Qwen2.5-Coder-7B-Instruct, bf16 (~15 GB),
-# fits one A100-40GB. Change MODEL_ID/SERVED_NAME for other models.
-export MODEL_ID=${MODEL_ID:-Qwen/Qwen2.5-Coder-7B-Instruct}
-export SERVED_NAME=${SERVED_NAME:-qwen2.5-coder-7b-instruct}
+# Models (decision 2026-11-18): 2x2 self/cross design, both bf16 on one A100-40GB.
+#   short name -> Hugging Face id   (Llama is gated: accept the licence on HF first)
+declare -A FYP_MODELS=(
+  [q7b]=Qwen/Qwen2.5-Coder-7B-Instruct
+  [l8b]=meta-llama/Llama-3.1-8B-Instruct
+)
+# Fallback if Llama access is not granted: [d7b]=deepseek-ai/deepseek-coder-6.7b-instruct
+export FYP_MODEL_KEYS="${FYP_MODEL_KEYS:-q7b l8b}"
+model_id() { echo "${FYP_MODELS[$1]:?unknown model key $1}"; }
+# Model served by a job: MODEL_KEY (preferred) or MODEL_ID.
+if [ -n "${MODEL_KEY:-}" ]; then MODEL_ID=$(model_id "$MODEL_KEY"); fi
+export MODEL_ID=${MODEL_ID:-${FYP_MODELS[q7b]}}
+_base=${MODEL_ID##*/}
+export SERVED_NAME=${SERVED_NAME:-${_base,,}}
+unset _base
 export MODEL_DIR=${MODEL_DIR:-$SCRATCH_DIR/models/${MODEL_ID//\//__}}
 
 # conda's activate scripts reference unset variables; relax `set -u` around them.

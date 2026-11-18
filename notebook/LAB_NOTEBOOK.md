@@ -458,6 +458,33 @@ regenerated (`reports/pilot-q15b/report.md`). 400 candidates, base rate
   GPU-hours, about 1–2% of the 100k-SU personal quota (64 SU/GPU-h). Measure
   real tok/s in the first `infer.pbs` job and update this.
 
+**Decisions (user, 2026-11-18, accepting the proposals above)**
+1. **Models: 2×2 self/cross design.** Generators and verifiers are both
+   Qwen2.5-Coder-7B-Instruct (`q7b`, code-specialised) and
+   Llama-3.1-8B-Instruct (`l8b`, general, a different family). Both are bf16
+   on one A100-40GB. Each corpus is judged by its own generator (self) and by
+   the other model (cross). Llama is gated on Hugging Face; the fallback is
+   deepseek-coder-6.7b-instruct (`d7b`).
+2. **Concurrency 32 accepted.** Seeds are treated as independent samples,
+   not exact replays, on ASPIRE. The pilot keeps exact replay
+   (llama.cpp, serial).
+3. **No client-side total deadline for now.** On ASPIRE, PBS walltime plus
+   resume-from-log bound any hang, and the hang seen on 2026-11-18 was the
+   laptop's memory-starved llama.cpp. Revisit if a vLLM job stalls.
+
+**Sweep layout** (`scripts/aspire/submit.sh`, `label_corpora.sh`):
+- Phase A: `gen-q7b` and `gen-l8b`, 163 problems × 10 candidates
+  (T 0.2/0.8 × 5).
+- Labelling: in WSL, as before.
+- Phase B: `verify-gen-<g>-by-<v>` for the 4 pairs, each running direct,
+  direct-swapped and reason with seeds 0–2. The vote (e) is computed by the
+  report.
+- Unlike the pilot, direct gets 3 seeds here, because a 7B model may not be
+  degenerate.
+- Tested offline: submit dry-runs, a two-stage `infer.pbs` with a stub vLLM,
+  and a mock end-to-end run (generate → label → keep → 3 strategies × 3
+  seeds with 32 in flight → report, 270 calls, 0 duplicates).
+
 **Compute: ASPIRE 2A (NSCC) instead of, or alongside, TC1.**
 - NSCC account `saiharsh` has the personal project `personal-saiharsh`
   (100k SU ≈ 1,560 A100-40GB GPU-hours at 64 SU/GPU-h).
