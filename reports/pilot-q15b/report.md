@@ -10,12 +10,14 @@ Verdict parsers: **v1** is the pre-registered run-time parser (`VERDICT: X`, els
 |---|---|---|---|---|---|---|---|---|
 | direct [v1] single call, seeds [0] | 400 | 68.2% [56.0%, 79.2%] | 100.0% [100.0%, 100.0%] | 0.0% [0.0%, 0.0%] | 0.000 [0.000, 0.000] | 0.0% | 7 | 6.7s |
 | direct-swapped [v1] single call, seeds [0] | 400 | 63.7% [52.2%, 75.2%] | 100.0% [100.0%, 100.0%] | 6.6% [0.4%, 15.7%] | -0.148 [-0.240, -0.035] | 0.0% | 7 | 7.2s |
-| reason [v1] single call, seeds [0] | 400 | 56.2% [45.5%, 66.0%] | 93.7% [88.1%, 97.9%] | 20.5% [11.1%, 32.4%] | -0.180 [-0.302, -0.055] | 11.2% | 403 | 32.7s |
-| reason [v2] single call, seeds [0] | 400 | 57.2% [46.0%, 67.2%] | 95.3% [90.2%, 98.8%] | 18.3% [9.3%, 30.6%] | -0.182 [-0.300, -0.055] | 9.2% | 403 | 32.7s |
+| reason [v1] single call, seeds [0, 1, 2] | 1200 | 60.2% [51.5%, 68.7%] | 87.4% [78.6%, 93.5%] | 17.6% [13.0%, 22.6%] | -0.063 [-0.165, 0.056] | 12.4% | 385 | 32.3s |
+| reason [v1] majority vote (3 seeds) | 400 | 66.5% [56.0%, 76.8%] | 90.6% [76.6%, 98.6%] | 7.0% [2.4%, 13.7%] | 0.043 [-0.145, 0.265] | – | ×3 | ×3 |
+| reason [v2] single call, seeds [0, 1, 2] | 1200 | 60.2% [50.9%, 69.0%] | 91.6% [87.1%, 95.3%] | 15.6% [11.3%, 20.5%] | -0.099 [-0.173, -0.017] | 9.8% | 385 | 32.3s |
+| reason [v2] majority vote (3 seeds) | 400 | 64.5% [53.0%, 75.0%] | 98.4% [95.6%, 100.0%] | 6.2% [2.1%, 12.0%] | -0.102 [-0.185, -0.003] | – | ×3 | ×3 |
 | baseline: always accept | 400 | 68.2% | 100.0% | 0.0% | 0.000 | – | – | – |
 | baseline: always reject | 400 | 31.8% | 0.0% | 100.0% | 0.000 | – | – | – |
 
-Parser check: 1200 logged calls; re-parsing with v1 reproduces the logged verdict for all but 0; v2 changes direct: 0, direct-swapped: 0, reason: 8 calls.
+Parser check: 2000 logged calls; re-parsing with v1 reproduces the logged verdict for all but 0; v2 changes direct: 0, direct-swapped: 0, reason: 32 calls.
 
 ## direct [v1]
 
@@ -75,25 +77,25 @@ False-accept rate by failure category (incorrect code only):
 
 | Category | n calls | Accepted | FAR |
 |---|---|---|---|
-| error | 17 | 16 | 94.1% |
-| slow | 3 | 3 | 100.0% |
-| timeout | 6 | 6 | 100.0% |
-| wrong_output | 101 | 94 | 93.1% |
+| error | 51 | 46 | 90.2% |
+| slow | 9 | 8 | 88.9% |
+| timeout | 18 | 17 | 94.4% |
+| wrong_output | 303 | 262 | 86.5% |
 
 By sampling temperature of the candidate:
 
 | T | n | Accuracy | FAR | FRR | MCC |
 |---|---|---|---|---|---|
-| 0.2 | 200 | 56.5% | 98.3% | 20.6% | -0.241 |
-| 0.8 | 200 | 56.0% | 89.7% | 20.5% | -0.128 |
+| 0.2 | 600 | 62.8% | 87.6% | 16.1% | -0.047 |
+| 0.8 | 600 | 57.7% | 87.3% | 19.2% | -0.081 |
 
 FAR by whether the model's own code block parsed (sanitize repairs syntax errors):
 
-- parses=True: 119/127 accepted (93.7%)
+- parses=True: 333/381 accepted (87.4%)
 
-Across seeds (mean ± sd): accuracy 56.2% ± 0.0%; far 93.7% ± 0.0%; frr 20.5% ± 0.0%; mcc -0.180 ± 0.000
-With no-verdict calls excluded (45 dropped): accuracy 62.0%, FAR 97.5%, FRR 6.9%, MCC -0.093.
-Cost: 400 calls, mean 454 in / 403 out tokens, 15 truncated at max_tokens.
+Across seeds (mean ± sd): accuracy 60.2% ± 3.9%; far 87.4% ± 5.9%; frr 17.6% ± 4.5%; mcc -0.062 ± 0.104
+With no-verdict calls excluded (149 dropped): accuracy 65.4%, FAR 96.5%, FRR 4.4%, MCC -0.022.
+Cost: 1200 calls, mean 454 in / 385 out tokens, 28 truncated at max_tokens.
 
 ## reason [v2]
 
@@ -101,25 +103,25 @@ False-accept rate by failure category (incorrect code only):
 
 | Category | n calls | Accepted | FAR |
 |---|---|---|---|
-| error | 17 | 16 | 94.1% |
-| slow | 3 | 3 | 100.0% |
-| timeout | 6 | 6 | 100.0% |
-| wrong_output | 101 | 96 | 95.0% |
+| error | 51 | 47 | 92.2% |
+| slow | 9 | 8 | 88.9% |
+| timeout | 18 | 17 | 94.4% |
+| wrong_output | 303 | 277 | 91.4% |
 
 By sampling temperature of the candidate:
 
 | T | n | Accuracy | FAR | FRR | MCC |
 |---|---|---|---|---|---|
-| 0.2 | 200 | 59.0% | 98.3% | 17.0% | -0.211 |
-| 0.8 | 200 | 55.5% | 92.6% | 19.7% | -0.162 |
+| 0.2 | 600 | 63.2% | 92.7% | 13.5% | -0.087 |
+| 0.8 | 600 | 57.3% | 90.7% | 17.9% | -0.114 |
 
 FAR by whether the model's own code block parsed (sanitize repairs syntax errors):
 
-- parses=True: 121/127 accepted (95.3%)
+- parses=True: 349/381 accepted (91.6%)
 
-Across seeds (mean ± sd): accuracy 57.2% ± 0.0%; far 95.3% ± 0.0%; frr 18.3% ± 0.0%; mcc -0.182 ± 0.000
-With no-verdict calls excluded (37 dropped): accuracy 62.3%, FAR 97.6%, FRR 6.7%, MCC -0.091.
-Cost: 400 calls, mean 454 in / 403 out tokens, 15 truncated at max_tokens.
+Across seeds (mean ± sd): accuracy 60.2% ± 3.3%; far 91.6% ± 3.6%; frr 15.6% ± 3.2%; mcc -0.097 ± 0.089
+With no-verdict calls excluded (117 dropped): accuracy 64.9%, FAR 96.7%, FRR 4.3%, MCC -0.023.
+Cost: 1200 calls, mean 454 in / 385 out tokens, 28 truncated at max_tokens.
 
 ## Corpus
 

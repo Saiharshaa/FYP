@@ -134,6 +134,31 @@ def test_label_end_to_end(tmp_path, few):
 
 @pytest.mark.linux
 @pytest.mark.skipif(os.name != "posix", reason="labelling needs POSIX")
+def test_label_keeps_unchanged_corpus(tmp_path, few):
+    one = {"HumanEval/0": few["HumanEval/0"]}
+    gen = {**CFG["generation"], "temperatures": [0.2]}
+    log = RunLog("keep", tmp_path)
+    build.generate(log, MockCoder(one), one, gen)
+    first = build.label(log, CFG)
+    corpus = tmp_path / "keep" / "corpus.jsonl"
+    before = corpus.stat().st_mtime_ns
+
+    again = build.label(log, CFG)                       # nothing new: kept
+    assert again == first and corpus.stat().st_mtime_ns == before
+
+    redo = build.label(log, CFG, relabel=True)          # forced: rewritten
+    assert redo["n_candidates"] == first["n_candidates"]
+    assert corpus.stat().st_mtime_ns != before
+
+    # a new candidate in the log means the corpus no longer covers it
+    log2 = RunLog("keep", tmp_path)
+    build.generate(log2, MockCoder(one), one, {**gen, "temperatures": [0.2, 0.8]})
+    grown = build.label(log2, CFG)
+    assert grown["n_candidates"] == 2 * first["n_candidates"]
+
+
+@pytest.mark.linux
+@pytest.mark.skipif(os.name != "posix", reason="labelling needs POSIX")
 def test_label_skips_excluded_problems(tmp_path, problems):
     full = load_problems()
     sub = {t: full[t] for t in ("HumanEval/0", "HumanEval/32")}

@@ -385,9 +385,53 @@ at T = 0.7. The log is clean: 0 duplicates, 0 missing.
   needs the larger cross-model runs (ASPIRE 2A, below) before it
   generalises.
 
-**Still running:** reason seeds 1–2 for the majority vote (e). Seed 1
-finished (400/400) and seed 2 is under way. The report regenerates when
-they finish.
+**Stall (2026-11-18).** reason seed 2 stopped at 338/400.
+- The last call was logged 00:28 SGT (latency 199 s). The verify process
+  was alive, and `/health` was ok, but nothing was logged until 04:12.
+- WSL was out of memory: 77 MB free of 4.9 GB, with `llama-server` RSS at
+  4.26 GB after 7 h of uptime (a 1.5B q4 model should need about 1 GB plus
+  KV cache).
+- The client's 300 s httpx timeout is per read, not per request, so a
+  server stalled by memory pressure can hang a call well beyond it.
+- Cause not established (possibly a server memory leak; a pytest run was
+  briefly competing for memory). Fixed by killing the run, `docker restart
+  fyp-llm`, and relaunching phase 2. It resumed from the log with 0 lost
+  calls.
+- To do: add a total per-request deadline in the client, and restart the
+  server between seeds on long CPU runs. This is a design choice: httpx has
+  no total timeout, and abandoning a call to a `--parallel 1` server queues
+  the retry behind it.
+- A second gap (04:18 to about 10:55, 346/400) was **laptop sleep, not a
+  stall**: process run times inside WSL showed about 6 min since the 04:13
+  restart. Windows' sleep timer must be off for overnight CPU runs.
+
+**Pilot complete (2026-11-18 11:36).** 2000 model calls logged, report
+regenerated (`reports/pilot-q15b/report.md`). 400 candidates, base rate
+68.2% correct; 95% CIs bootstrap over problems:
+
+| Strategy | Accuracy | FAR | FRR | MCC |
+|---|---|---|---|---|
+| always accept | 68.2% | 100% | 0% | 0 |
+| (a) direct | 68.2% | 100% | 0% | 0.000 |
+| direct-swapped | 63.7% | 100% | 6.6% | −0.148 [−0.240, −0.035] |
+| (b) reason, single call, 3 seeds, v1 | 60.2% | 87.4% | 17.6% | −0.063 [−0.165, 0.056] |
+| (b) reason, single call, v2 | 60.2% | 91.6% | 15.6% | −0.099 [−0.173, −0.017] |
+| (e) vote over 3 reason seeds, v1 | 66.5% | 90.6% | 7.0% | +0.043 [−0.145, 0.265] |
+| (e) vote, v2 | 64.5% | 98.4% | 6.2% | −0.102 [−0.185, −0.003] |
+
+- **No strategy beats always-accept accuracy, and no MCC is reliably above
+  0.** Self-verification by a 1.5B model is uninformative or worse, under
+  every prompt, parser and aggregation tried.
+- **The vote's v1 "gain" is a parsing artefact.** v1 counts `\boxed{}` and
+  truncated answers as rejections (12.4% no-verdict per call), which lowers
+  FAR. When v2 reads the boxed verdicts, the vote accepts 98.4% of incorrect
+  code. Report v1 as pre-registered and v2 alongside it, and do not claim a
+  voting benefit.
+- **Reasoning hurts.** It raises false rejects (17.6% vs 0%) while barely
+  lowering false accepts, so accuracy falls 8 points below baseline.
+- **Next:** repeat the protocol with a stronger model and cross-model
+  verification on ASPIRE 2A (`scripts/aspire/`). The 7B model is still to be
+  chosen. Keep both parsers and the no-verdict rate in every table.
 
 **Compute: ASPIRE 2A (NSCC) instead of, or alongside, TC1.**
 - NSCC account `saiharsh` has the personal project `personal-saiharsh`

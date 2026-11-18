@@ -123,8 +123,32 @@ def response_diagnostics(response: str, solution: str) -> dict:
             "sanitize_modified": raw.strip() != solution.strip()}
 
 
-def label(log: RunLog, cfg: dict, workers: int | None = None) -> dict:
-    """Label every generated candidate in the log; returns corpus metadata."""
+def _existing_labels_cover(log: RunLog, keys: set[tuple[str, str, str]]) -> dict | None:
+    """Metadata of the existing corpus if it labels exactly these candidates.
+
+    keys are (problem_id, candidate_id, solution_sha256). Re-labelling is not
+    free of side effects: failure categories near the time limit depend on
+    host load (notebook 2026-10-07), so an unchanged corpus is kept as is.
+    """
+    corpus = log.path.with_name("corpus.jsonl")
+    meta = log.path.with_name("corpus_meta.json")
+    if not (corpus.exists() and meta.exists()):
+        return None
+    have = set()
+    for line in corpus.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            r = json.loads(line)
+            have.add((r["problem_id"], r["candidate_id"], r["solution_sha256"]))
+    return json.loads(meta.read_text(encoding="utf-8")) if have == keys else None
+
+
+def label(log: RunLog, cfg: dict, workers: int | None = None,
+          relabel: bool = False) -> dict:
+    """Label every generated candidate in the log; returns corpus metadata.
+
+    If corpus.jsonl already labels exactly the logged candidates (same ids and
+    solutions), it is kept and its metadata returned, unless relabel=True.
+    """
     from verifier.corpus.categorise import categorise, machine_info
     from verifier.corpus.labelling import (
         dataset_info, evalplus_info, label_many, load_expected, load_problems,
@@ -144,6 +168,15 @@ def label(log: RunLog, cfg: dict, workers: int | None = None) -> dict:
     records = [r for r in records if r.problem_id in problems]
     solutions = [extract_solution(r.response, problems[r.problem_id]["entry_point"])
                  for r in records]
+
+    if not relabel:
+        keys = {(r.problem_id, r.candidate_id, hashlib.sha256(s.encode()).hexdigest())
+                for r, s in zip(records, solutions)}
+        existing = _existing_labels_cover(log, keys)
+        if existing is not None:
+            print(f"corpus.jsonl already labels all {len(keys)} candidates; "
+                  "kept (use --relabel to redo)", file=sys.stderr)
+            return existing
 
     labels = label_many([(r.problem_id, s) for r, s in zip(records, solutions)],
                         problems, expected, workers)
@@ -212,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
     l = sub.add_parser("label", help="execute + label candidates (WSL2 only)")
     l.add_argument("--run-id", required=True)
     l.add_argument("--workers", type=int)
+    l.add_argument("--relabel", action="store_true",
+                   help="re-label even if corpus.jsonl already covers every candidate")
     for p in (g, l):
         p.add_argument("--results", default="results")
     args = ap.parse_args(argv)
@@ -237,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
         made = generate(log, client, problems, cfg["generation"])
         print(f"{made} model calls; log at {log.path}")
     else:
-        meta = label(log, cfg, args.workers)
+        meta = label(log, cfg, args.workers, relabel=args.relabel)
         print(json.dumps({k: meta[k] for k in ("n_candidates", "n_correct",
                                                "failure_categories", "n_truncated")}))
     return 0
