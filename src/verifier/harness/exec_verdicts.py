@@ -47,12 +47,17 @@ def load_exec(results: str | Path, run_id: str) -> dict[tuple, dict]:
                     r = json.loads(line)
                 except json.JSONDecodeError:
                     continue                      # partial trailing line
-                out[(r["problem_id"], r["candidate_id"], r["strategy"], r["seed"])] = r
+                out[(r["problem_id"], r["candidate_id"], r["strategy"], r["seed"],
+                     r.get("extract", "v1"))] = r
     return out
 
 
 def jobs(results: str | Path, run_id: str) -> list[dict]:
-    """Every (problem call x candidate) still missing from exec.jsonl."""
+    """Every (problem call x candidate x extractor) still missing from exec.jsonl.
+
+    Extractor v1 always runs. A v2 job exists only where v1 found no test and
+    v2 finds some; everywhere else the v2 verdict *is* the v1 verdict (the
+    report falls back to v1), so nothing is executed twice."""
     vmeta = json.loads((Path(results) / run_id / "verify_meta.json").read_text())
     rows, _ = load_corpus(results, vmeta["corpus_run"])
     by_problem: dict[str, list[dict]] = {}
@@ -63,18 +68,25 @@ def jobs(results: str | Path, run_id: str) -> list[dict]:
     for rec in RunLog(run_id, results).records():
         if rec.strategy not in EXEC_STRATEGIES or rec.candidate_id != PER_PROBLEM:
             continue
+        versions = ["v1"]
+        if (rec.strategy == "self-tests" and not extract_asserts(rec.response, version="v1")
+                and extract_asserts(rec.response, version="v2")):
+            versions.append("v2")
         for row in by_problem.get(rec.problem_id, []):
-            key = (rec.problem_id, row["candidate_id"], rec.strategy, rec.seed)
-            if key not in done:
-                todo.append({"key": key, "response": rec.response, "solution": row["solution"]})
+            for ver in versions:
+                key = (rec.problem_id, row["candidate_id"], rec.strategy, rec.seed, ver)
+                if key not in done:
+                    todo.append({"key": key, "response": rec.response,
+                                 "solution": row["solution"]})
     return todo
 
 
 def run_one(job: dict, problems: dict, sandbox, memory_mb: int) -> dict:
-    pid, cid, strategy, seed = job["key"]
-    base = {"problem_id": pid, "candidate_id": cid, "strategy": strategy, "seed": seed}
+    pid, cid, strategy, seed, ver = job["key"]
+    base = {"problem_id": pid, "candidate_id": cid, "strategy": strategy, "seed": seed,
+            "extract": ver}
     if strategy == "self-tests":
-        tests = extract_asserts(job["response"])
+        tests = extract_asserts(job["response"], version=ver)
         if not tests:
             return {**base, "verdict": None, "details": {"n_tests": 0}, "duration_s": 0.0}
         code = self_tests_program(job["solution"], tests)

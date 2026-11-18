@@ -57,6 +57,40 @@ def test_extract_asserts_salvages_lines_from_broken_block():
     assert extract_asserts("no code here") == []
 
 
+UNITTEST_TEXT = """```python
+import unittest
+
+class TestAdd(unittest.TestCase):
+    def test_basic(self):
+        self.assertEqual(add(2, 3), 5)
+        self.assertTrue(add(1, 1) == 2)
+        self.assertFalse(add(0, 0))
+    def test_cut(self):
+        self.assertEqual(add(1,
+```"""
+DOCTEST_TEXT = """```python
+def add(x, y):
+    \"\"\"
+    >>> add(2, 3)
+    5
+    >>> add(-1, 1)
+    0
+    >>> add(1,
+    \"\"\"
+```"""
+
+
+def test_extractor_v2_converts_unittest_and_doctest_formats():
+    # Formats the 1.5B pilot model produced instead of plain asserts.
+    assert extract_asserts(UNITTEST_TEXT) == []                # v1: nothing
+    assert extract_asserts(UNITTEST_TEXT, version="v2") == [
+        "assert add(2, 3) == 5", "assert add(1, 1) == 2", "assert not (add(0, 0))"]
+    assert extract_asserts(DOCTEST_TEXT, version="v2") == [
+        "assert (add(2, 3)) == (5)", "assert (add(-1, 1)) == (0)"]
+    # v2 never overrides a v1 result
+    assert extract_asserts(TESTS_TEXT, version="v2") == extract_asserts(TESTS_TEXT)
+
+
 def test_extract_reference_needs_both_functions():
     assert extract_reference(REF_TEXT) is not None
     assert extract_reference("```python\ndef reference(x, y):\n    return x\n```") is None

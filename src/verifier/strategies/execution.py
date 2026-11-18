@@ -95,10 +95,77 @@ def last_code_block(text: str) -> str | None:
     return m.group(1) if m else None
 
 
-def extract_asserts(text: str, limit: int = MAX_TESTS) -> list[str]:
-    """Top-level assert statements of the last code block, unparsed one by one.
-    Asserts inside `def test_*()` bodies are lifted as well; any other code
-    (including a re-definition of the function under test) is ignored."""
+_UNITTEST = {   # self.<method>(args) -> assert template (post hoc, extractor v2)
+    "assertEqual": "{0} == {1}", "assertEquals": "{0} == {1}",
+    "assertListEqual": "{0} == {1}", "assertTupleEqual": "{0} == {1}",
+    "assertDictEqual": "{0} == {1}", "assertSetEqual": "{0} == {1}",
+    "assertNotEqual": "{0} != {1}", "assertTrue": "{0}", "assertFalse": "not ({0})",
+    "assertIsNone": "{0} is None", "assertIsNotNone": "{0} is not None",
+    "assertIn": "{0} in {1}", "assertNotIn": "{0} not in {1}",
+    "assertAlmostEqual": "round(abs(({0}) - ({1})), 7) == 0",
+}
+_DOCTEST = re.compile(r"^\s*>>>\s?(.+)\n\s*(?!>>>)(\S.*)$", re.M)
+
+
+def _unittest_asserts(code: str) -> list[str]:
+    """`self.assertX(a, b, ...)` calls anywhere in the code -> assert statements."""
+    try:
+        nodes = ast.walk(ast.parse(code))
+    except SyntaxError:      # truncated block: convert the lines that parse alone
+        nodes = []
+        for line in code.splitlines():
+            try:
+                nodes += list(ast.walk(ast.parse(line.strip())))
+            except SyntaxError:
+                pass
+    out = []
+    for n in nodes:
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and isinstance(n.func.value, ast.Name) and n.func.value.id == "self"
+                and n.func.attr in _UNITTEST and n.args):
+            args = [ast.unparse(a) for a in n.args]
+            tmpl = _UNITTEST[n.func.attr]
+            if "{1}" in tmpl and len(args) < 2:
+                continue
+            out.append("assert " + tmpl.format(*args))
+    return out
+
+
+def _doctest_asserts(code: str) -> list[str]:
+    """`>>> expr` followed by an expected-output line -> `assert expr == expected`."""
+    out = []
+    for expr, want in _DOCTEST.findall(code):
+        stmt = f"assert ({expr.strip()}) == ({want.strip()})"
+        try:
+            ast.parse(stmt)
+            out.append(stmt)
+        except SyntaxError:
+            pass
+    return out
+
+
+def extract_asserts(text: str, limit: int = MAX_TESTS, version: str = "v1") -> list[str]:
+    """Tests from the last code block.
+
+    v1 (pre-registered): top-level assert statements, plus asserts in the body
+    of `def test_*()`; any other code (including a re-definition of the
+    function under test) is ignored.
+    v2 (post hoc, 2026-11-18, reported alongside v1): v1, and if v1 finds
+    nothing, unittest `self.assertX(...)` calls and doctest `>>> expr` /
+    expected-output pairs converted to asserts. Added because the 1.5B pilot
+    model often answered in those formats instead of plain asserts.
+    """
+    v1 = _extract_v1(text, limit)
+    if version == "v1" or v1:
+        return v1
+    code = last_code_block(text) or ""
+    return (_unittest_asserts(code) or _doctest_asserts(code))[:limit]
+
+
+EXTRACTORS = ("v1", "v2")
+
+
+def _extract_v1(text: str, limit: int) -> list[str]:
     code = last_code_block(text)
     if code is None:
         return []

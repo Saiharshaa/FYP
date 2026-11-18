@@ -498,3 +498,63 @@ regenerated (`reports/pilot-q15b/report.md`). 400 candidates, base rate
 - TC1 form filled (`Documents/FYP_TC1/`), kept as a fallback.
 - Next: GPU smoke test (`scripts/aspire/gpu_smoke.pbs`), then a vLLM
   inference job (`scripts/aspire/`).
+
+## 2026-11-18: strategies (c)/(d) and the RQ4 selection analysis
+
+**User go-ahead (2026-11-18):** implement (c) and (d), which were on hold
+since 2026-09-30.
+
+**Design: tests come from the specification, once per problem.**
+- The verifier model sees only the problem statement, never the candidate
+  and never the hidden tests. Once per (problem, seed) it writes either
+  - (c) `self-tests`: `assert` statements, or
+  - (d) `reference`: a brute-force `reference(...)` plus a
+    `generate_inputs()` returning small argument tuples.
+- That output is applied to all 10 candidates of the problem.
+- Why: as in CodeT, tests cannot be anchored on one candidate, and it needs
+  10× fewer model calls.
+- Model calls run in `verify`, so they are fine on a GPU host. All code runs
+  in `harness/exec_verdicts` inside the WSL sandbox, writing `exec.jsonl`.
+  The report takes these verdicts from execution, not from parsing.
+- Cost per candidate is the per-problem call split over its candidates.
+
+**Pre-registered decision rules** (in `strategies/execution.py`, written
+before any pilot output was seen):
+- (c) accept iff every extracted assert passes. Each assert runs separately
+  with a 2 s alarm. A candidate that fails to load is rejected.
+- (d) accept iff the candidate agrees with `reference` on every input that
+  `reference` itself handles within 2 s. Floats compare at 1e-6 tolerance.
+- No usable tests, or no usable reference, means no verdict, which the
+  report counts as reject, as for the judge strategies.
+
+**Extractor v2 (post hoc, like parser v2).**
+- In the first 8 `self-tests` answers from the 1.5B pilot model, only 4
+  contained plain asserts. The others used unittest classes
+  (`self.assertEqual`) or doctest `>>>` blocks.
+- v2 also converts those, but only when v1 finds nothing, so it never
+  overrides v1. It recovers 8/8.
+- v1 stays the pre-registered rule. The report shows v2 rows where v2
+  changes a verdict. Exec runs v2 only where it differs, so nothing is
+  executed twice.
+
+**RQ4 selection analysis** (`analysis/selection.py`, in every report).
+- Per problem: random = c/k; verifier = picks uniformly among accepted
+  candidates, or randomly if none is accepted; oracle = 1 if any candidate
+  is correct. Expected values are exact.
+- Headroom captured = (verifier − random) / (oracle − random).
+- Pilot (1.5B, self-verification; random 68.2%, oracle 90.0%):
+
+| Strategy | Verifier pick | Headroom captured |
+|---|---|---|
+| direct (seed mean) | 68.2% | +0.00 |
+| direct-swapped | 68.1% | −0.01 |
+| reason (seed mean, v1) | 67.8% | −0.02 |
+| reason vote, v1 | 69.4% | +0.05 [−0.02, +0.15] |
+| reason vote, v2 | 68.4% | +0.01 [−0.02, +0.04] |
+
+- No judgement-only strategy captures any headroom; every CI includes 0.
+  This fits H4: below some reliability, verifier-based selection is no
+  better than random.
+- (c)/(d) pilot running (`scripts/run_pilot_exec.sh`, 240 per-problem calls
+  at about 55 s each with the local 1.5B, then sandboxed execution). Results
+  to follow.

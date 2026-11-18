@@ -32,6 +32,10 @@ from verifier.strategies import (
 from types import SimpleNamespace
 
 
+def _k(r) -> tuple:
+    return (r.problem_id, r.candidate_id, r.seed)
+
+
 def _exec_summary(recs: list) -> dict:
     """How often the model's tests / reference were usable at all."""
     n = len(recs)
@@ -70,17 +74,23 @@ def corpus_summary(rows: list[dict], meta: dict) -> dict:
     }
 
 
-def exec_records(rows: list[dict], recs: list, results: str | Path, run_id: str) -> list:
+def exec_records(rows: list[dict], recs: list, results: str | Path, run_id: str,
+                 extract: str = "v1") -> list:
     """Per-candidate records for an execution strategy ((c)/(d)): verdicts from
     exec.jsonl; the per-problem model call's tokens and latency are split evenly
-    over that problem's candidates (cost per verified candidate)."""
+    over that problem's candidates (cost per verified candidate).
+    extract="v2" uses a v2 execution where one exists, else the v1 one."""
     from verifier.harness.exec_verdicts import load_exec
 
     ex = load_exec(results, run_id)
     n_cands = Counter(r["problem_id"] for r in rows)
     calls = {(r.problem_id, r.seed): r for r in recs if r.candidate_id == PER_PROBLEM}
     out = []
-    for (pid, cid, strat, seed), e in ex.items():
+    for (pid, cid, strat, seed, ver), e in ex.items():
+        if ver != "v1":
+            continue
+        if extract != "v1":
+            e = ex.get((pid, cid, strat, seed, extract), e)
         call = calls.get((pid, seed))
         if call is None or call.strategy != strat:
             continue
@@ -162,10 +172,15 @@ def build_report(results: str | Path, run_id: str, n_boot: int = 2000) -> dict:
     for r in RunLog(run_id, results).records():
         recs[r.strategy].append(r)
     # (c)/(d): verdicts come from running code (exec.jsonl), not from parsing.
-    exec_recs = {s: exec_records(rows, v, results, run_id)
-                 for s, v in recs.items() if s in EXEC_STRATEGIES}
-    exec_reports = {s: strategy_report(rows, v, n_boot, from_record=True)
-                    for s, v in sorted(exec_recs.items())}
+    # Parser version p doubles as the test-extractor version for (c).
+    exec_by_p = {p: {s: exec_records(rows, v, results, run_id, extract=p)
+                     for s, v in recs.items() if s in EXEC_STRATEGIES} for p in PARSERS}
+    exec_recs = exec_by_p["v1"]
+    exec_reports = {p: {s: strategy_report(rows, v, n_boot, from_record=True)
+                        for s, v in sorted(d.items())} for p, d in exec_by_p.items()}
+    exec_changed = {s: sum(a.verdict != b.verdict for a, b in zip(
+                        sorted(exec_by_p["v1"][s], key=_k), sorted(exec_by_p["v2"][s], key=_k)))
+                    for s in exec_recs}
     for s in exec_recs:
         recs.pop(s)
     all_recs = [r for v in recs.values() for r in v]
@@ -186,10 +201,11 @@ def build_report(results: str | Path, run_id: str, n_boot: int = 2000) -> dict:
         "parser_check": {
             "calls": len(all_recs), "v1_reparse_mismatches": v1_mismatch,
             "v2_changed_calls": {s: sum(parse_verdict(r.response) != parse_verdict_v2(r.response)
-                                        for r in v) for s, v in sorted(recs.items())},
+                                        for r in v) for s, v in sorted(recs.items())}
+                                | exec_changed,
         },
         "strategies": {p: {**{s: strategy_report(rows, v, n_boot, fn)
-                              for s, v in sorted(recs.items())}, **exec_reports}
+                              for s, v in sorted(recs.items())}, **exec_reports[p]}
                        for p, fn in PARSERS.items()},
         "execution": {s: _exec_summary(v) for s, v in sorted(exec_recs.items())},
         "n_boot": n_boot,
